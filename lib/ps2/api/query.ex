@@ -1,15 +1,17 @@
 defmodule PS2.API.Query do
 	alias PS2.API.Query
 
-	defstruct collection: nil, terms: %{}, joins: %{}
+	defstruct collection: nil, terms: %{}, subqueries: []
 
 	@spec new() :: %Query{}
-	def new(), do: %Query{}
+	def new() do
+		%Query{}
+	end
+	# close solution: Enum.reduce(options, %Query{}, fn {key, val}, q -> %Query{q | q.key = val} end)
 
 	@spec collection(%Query{}, String.t()) :: %Query{}
-	def collection(%Query{} = q, collection_name) do
+	def collection(%Query{} = q, collection_name), do:
 		%Query{q | collection: collection_name}
-	end
 
 	@doc """
 	Adds a c:show term. Overwrites previous terms of the same name.
@@ -34,9 +36,9 @@ defmodule PS2.API.Query do
 	### API Documentation:
 	Sort the results by the field(s) provided.
 	"""
-	@spec sort(%Query{}, integer()) :: %Query{}
-	def sort(%Query{} = q, _value), do:
-		q
+	@spec sort(%Query{}, map()) :: %Query{}
+	def sort(%Query{} = q, %{} = sort_terms), do:
+		%Query{q | subqueries: q.subqueries ++ [{:sort, sort_terms}]}
 
 	@doc """
 	Adds a c:has term. Overwrites previous terms of the same name.
@@ -50,7 +52,7 @@ defmodule PS2.API.Query do
 
 	@doc """
 	Adds a c:resolve term. Overwrites previous terms of the same name.
-	**Note** that `join/3` is recommended over resolve, as resolve relies
+	**Note** that `join/3` is recommended over `resolve/2`, as resolve relies
 	on supported collections to work.
 
 	### API Documentation:
@@ -62,8 +64,8 @@ defmodule PS2.API.Query do
 	that leader_character_id be in the initial query.
 	"""
 	@spec resolve(%Query{}, String.t()) :: %Query{}
-	def resolve(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:resolve", value)}
+	def resolve(%Query{} = q, collection), do:
+		%Query{q | terms: Map.put(q.terms, "c:resolve", collection)}
 
 	@doc """
 	Adds a c:case (sensitivity) term. Overwrites previous terms of the same name.
@@ -140,16 +142,16 @@ defmodule PS2.API.Query do
 	"""
 	@spec join(%Query{}, String.t(), map()) :: %Query{}
 	def join(%Query{} = q, collection, %{} = join_terms), do:
-		%Query{q | joins: Map.put(q.joins, collection, join_terms)}
+		%Query{q | subqueries: q.subqueries ++ [{:join, collection, join_terms}]}
 
 	@doc """
 	Adds a c:tree term
 	### API Documentaion:
 	Useful for rearranging lists of data into trees of data. See below for details.
 	"""
-	@spec tree(%Query{}, String.t(), map()) :: %Query{}
-	def tree(%Query{} = q, _collection, %{} = _tree_terms), do:
-		q
+	@spec tree(%Query{}, map()) :: %Query{}
+	def tree(%Query{} = q, %{} = tree_terms), do:
+	%Query{q | subqueries: q.subqueries ++ [{:tree, tree_terms}]}
 
 	@doc """
 	Adds a c:timing term. Overwrites previous terms of the same name.
@@ -174,7 +176,10 @@ defmodule PS2.API.Query do
 	@doc """
 	Adds a c:distinct term. Overwrites previous terms of the same name.
 	### API Documentation:
-
+	Get the distinct values of the given field. For example to get the
+	distinct values of ps2.item.max_stack_size use
+	`http://census.daybreakgames.com/get/ps2/item?c:distinct=max_stack_size`.
+	Results are capped at 20,000 values.
 	"""
 	@spec distinct(%Query{}, boolean()) :: %Query{}
 	def distinct(%Query{} = q, value), do:
@@ -183,26 +188,35 @@ defmodule PS2.API.Query do
 	@doc """
 	Adds a c:retry term. Overwrites previous terms of the same name.
 	### API Documentation:
-
+	If `true`, query will be retried one time. Default value is true.
+	If you prefer your query to fail quickly pass c:retry=false.
 	"""
 	@spec retry(%Query{}, boolean()) :: %Query{}
 	def retry(%Query{} = q, value), do:
 		%Query{q | terms: Map.put(q.terms, "c:retry", value)}
 
 	@doc """
-	Explicitly specify your `term` with this function.
+	Add a `term`=`value` to filter by on the collection. i.e. /character?character_id=1234123412341234123
 	"""
-	@spec add_raw_term(%Query{}, String.t(), String.t()) :: %Query{}
-	def add_raw_term(%Query{} = q, term, value) do
+	@spec term(%Query{}, String.t(), String.t()) :: %Query{}
+	def term(%Query{collection: col}, term, _value) when term == "type" and col != "world_event", do:
+		{:error, "`type` term only available on the `world_event` collection"}
+	def term(%Query{} = q, term, value), do:
 		%Query{q | terms: Map.put(q.terms, term, value)}
-	end
 
 	@doc """
 	Encodes a Query struct into an API-ready string
 	"""
 	@spec encode(%Query{}) :: String.t()
 	def encode(%Query{} = q) do
-		"#{q.collection}?" <> URI.encode_query(q.terms) <> Enum.map_join(q.joins, fn {collection, terms} -> "&c:join=#{collection}^" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{val}" end) end)
+		"#{q.collection}?"
+		<> URI.encode_query(q.terms)
+		<> Enum.map_join(q.subqueries,
+			&(case &1 do
+				{:join, collection, terms} -> "&c:join=#{collection}^" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{val}" end)
+				{:tree, terms} -> "&c:tree=" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{val}" end)
+				{:sort, terms} -> "&c:sort=" <> Enum.map_join(terms, ",", fn {term, val} -> "#{term}:#{val}" end)
+			end))
 	end
 
 	defimpl String.Chars, for: PS2.API.Query do
