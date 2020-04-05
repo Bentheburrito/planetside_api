@@ -1,7 +1,3 @@
-# TODO:
-# Dynamic census service IDs, automatically distrubute load balance accross keys.
-#
-
 defmodule PS2 do
 	use Application
 
