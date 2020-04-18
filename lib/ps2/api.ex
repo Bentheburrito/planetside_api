@@ -9,7 +9,7 @@ defmodule PS2.API do
 	end
 
 	@doc """
-	Sends encodes `query` to the API. Returns `{:ok, body}` if successful, where `body` is the body of the response decoded with Jason.decode/1.
+	Sends `query` to the API, encoding it if necessary. Returns `{:ok, body}` if successful, where `body` is the body of the response decoded with Jason.decode/1.
 	"""
 	@spec query(%Query{} | url()) :: {:ok, body()} | {:error, HTTPoison.Error | Jason.DecodeError | PS2.API.Error}
 	def query(query) when is_bitstring(query) do

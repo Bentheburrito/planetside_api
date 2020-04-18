@@ -1,5 +1,5 @@
 defmodule PS2.APITest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 	doctest PS2.API
 	alias PS2.API.Query
 

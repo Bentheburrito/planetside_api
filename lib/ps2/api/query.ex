@@ -1,13 +1,38 @@
 defmodule PS2.API.Query do
-	alias PS2.API.Query
+	@moduledoc """
+	A module for creating customizable Census API queries.
 
+	## Examples
+		iex> import PS2.API.Query
+		PS2.API.Query
+		iex> q = new(collection: "character")
+		...> |> term("character_id", "5428011263335537297")
+		...> |> show(["character_id", "name.en", "faction_id"])
+		...> |> limit(3)
+		...> |> exact_match_first(true)
+		%PS2.API.Query{
+			collection: "character",
+			subqueries: [],
+			terms: %{
+				"c:exactMatchFirst" => true,
+				"c:limit" => 3,
+				"c:show" => "character_id,name.en,faction_id",
+				"character_id" => "5428011263335537297"
+			}
+		}
+		iex> encode q
+		{:ok, "character?c%3AexactMatchFirst=true&c%3Alimit=3&c%3Ashow=character_id%2Cname.en%2Cfaction_id&character_id=5428011263335537297"}
+	"""
+
+	alias PS2.API.Query
 	defstruct collection: nil, terms: %{}, subqueries: []
 
-	@spec new() :: %Query{}
-	def new() do
-		%Query{}
+	@spec new([]) :: %Query{}
+	def new(), do: %Query{}
+	def new(collection: col) do
+		%Query{collection: col}
 	end
-	# close solution: Enum.reduce(options, %Query{}, fn {key, val}, q -> %Query{q | q.key = val} end)
+	def new(_), do: %Query{}
 
 	@spec collection(%Query{}, String.t()) :: %Query{}
 	def collection(%Query{} = q, collection_name), do:
@@ -18,7 +43,8 @@ defmodule PS2.API.Query do
 	### API Documentation:
 	Only include the provided fields from the object within the result.
 	"""
-	@spec show(%Query{}, integer()) :: %Query{}
+	@spec show(%Query{}, String.t() | list(String.t())) :: %Query{}
+	def show(%Query{} = q, values) when is_list(values), do: show(q, Enum.join(values, ","))
 	def show(%Query{} = q, value), do:
 		%Query{q | terms: Map.put(q.terms, "c:show", value)}
 
@@ -27,7 +53,8 @@ defmodule PS2.API.Query do
 	### API Documentation:
 	Include all field except the provided fields from the object within the result.
 	"""
-	@spec hide(%Query{}, integer()) :: %Query{}
+	@spec hide(%Query{}, String.t() | list(String.t())) :: %Query{}
+	def hide(%Query{} = q, values) when is_list(values), do: hide(q, Enum.join(values, ","))
 	def hide(%Query{} = q, value), do:
 		%Query{q | terms: Map.put(q.terms, "c:hide", value)}
 
@@ -46,7 +73,8 @@ defmodule PS2.API.Query do
 	Include objects where the specified field exists, regardless
 	of the value within that field.
 	"""
-	@spec has(%Query{}, integer()) :: %Query{}
+	@spec has(%Query{}, String.t() | list()) :: %Query{}
+	def has(%Query{} = q, values) when is_list(values), do: has(q, Enum.join(values, ","))
 	def has(%Query{} = q, value), do:
 		%Query{q | terms: Map.put(q.terms, "c:has", value)}
 
@@ -207,19 +235,28 @@ defmodule PS2.API.Query do
 	@doc """
 	Encodes a Query struct into an API-ready string
 	"""
-	@spec encode(%Query{}) :: String.t()
+	@spec encode(%Query{}) :: {:ok, String.t()}
+	def encode(%Query{collection: nil} = _q), do: {:error, %PS2.API.Error{message: "Collection field must be specified to be a valid query."}}
 	def encode(%Query{} = q) do
-		"#{q.collection}?"
-		<> URI.encode_query(q.terms)
-		<> Enum.map_join(q.subqueries,
-			&(case &1 do
-				{:join, collection, terms} -> "&c:join=#{collection}^" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{val}" end)
-				{:tree, terms} -> "&c:tree=" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{val}" end)
-				{:sort, terms} -> "&c:sort=" <> Enum.map_join(terms, ",", fn {term, val} -> "#{term}:#{val}" end)
-			end))
+		{:ok,
+			"#{q.collection}?"
+			<> URI.encode_query(q.terms)
+			<> Enum.map_join(q.subqueries,
+				&(case &1 do
+					{:join, collection, terms} -> "&c:join=#{collection}^" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{encode_term_values(val)}" end)
+					{:tree, terms} -> "&c:tree=" <> Enum.map_join(terms, "^", fn {term, val} -> "#{term}:#{encode_term_values(val)}" end)
+					{:sort, terms} -> "&c:sort=" <> Enum.map_join(terms, ",", fn {term, val} -> "#{term}:#{encode_term_values(val)}" end)
+				end))
+		}
 	end
 
+	defp encode_term_values(values) when is_list(values), do: Enum.join(values, "'")
+	defp encode_term_values(value) when is_bitstring(value), do: value
+
 	defimpl String.Chars, for: PS2.API.Query do
-		def to_string(q), do: Query.encode(q)
+		def to_string(q) do
+			{_, q_str} = Query.encode(q)
+			q_str
+		end
 	end
 end
