@@ -21,7 +21,9 @@ defmodule PS2.MixProject do
   defp deps do
     [
       {:jason, "~> 1.2"},
-			{:httpoison, "~> 1.6"}
+			{:httpoison, "~> 1.6"},
+			{:websockex, "~> 0.4.2"},
+			{:gen_stage, "~> 1.0"}
     ]
   end
 end
