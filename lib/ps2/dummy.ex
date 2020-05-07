@@ -1,4 +1,7 @@
 defmodule DummySupervisor do
+	@moduledoc """
+	Used for testing.
+	"""
 	use Supervisor
 
 	def start_link(opts) do
@@ -9,27 +12,25 @@ defmodule DummySupervisor do
 	def init(:ok) do
 
 		children = [
-			{PS2.SocketClient, [events: ["PlayerLogin"], worlds: [1, 10, 13, 17, 19, 40], characters: ["all"]]}
+			{Dummy, [events: ["PlayerLogin", "VehicleDestroy"], worlds: [1, 10, 13, 17, 19, 40], characters: ["all"]]},
+			# {Dummy, [events: ["PlayerLogout"], worlds: [1, 10, 13, 17, 19, 40], characters: ["all"], id: Dummy2]}
 		]
 
 		Supervisor.init(children, strategy: :one_for_one)
 	end
 end
 
-# defmodule Dummy do
-# 	use PS2.SocketClient
+defmodule Dummy do
+	use PS2.SocketClient
 
-# 	def start_link do
-# 		PS2.SocketClient.start_link(__MODULE__)
-# 	end
+	def start_link(subscriptions) do
+		PS2.SocketClient.start_link(__MODULE__, subscriptions)
+	end
 
-# 	def init(init_arg) do
-# 		{:ok, init_arg}
-# 	end
+	def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
 
-# 	@impl PS2.SocketClient
-# 	def handle_event({event_name, _payload}) do
-
-# 		IO.inspect "Wow, look at that"
-# 	end
-# end
+	@impl PS2.SocketClient
+	def handle_event({event, _payload}) do
+		IO.puts "#{inspect self()} recieved unhandled event: #{event}"
+	end
+end
