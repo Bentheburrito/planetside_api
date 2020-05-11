@@ -4,6 +4,9 @@ defmodule PS2 do
 	# Application Entry Point
 	@impl true
 	def start(_type, _args) do
-		DummySupervisor.start_link(name: DummySupervisor)
+		PS2.Supervisor.start_link(name: PS2.Supervisor)
+
+		# Testing
+		# DummySupervisor.start_link(name: DummySupervisor)
 	end
 end

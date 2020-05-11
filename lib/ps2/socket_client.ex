@@ -26,6 +26,9 @@ defmodule PS2.SocketClient do
 		end
 	end
 	```
+	The second param of `PS2.SocketClient.start_link/2` is the subscription info your client is interested in. See the link below
+	to find a list of all event names. You may also specify "all" in any of the subscription fields (Note: if a field is missing,
+	"all" will be the default.)
 
 	For more information, see the official documentation: https://census.daybreakgames.com/#websocket-details
 	"""
@@ -37,40 +40,57 @@ defmodule PS2.SocketClient do
 	is the event payload (Map).
 
 	Example:
-	`{"VehicleDestroy", %{"attacker_character_id" => "5428812948092239617", ... }`
+	`{"VehicleDestroy", %{"attacker_character_id" => "5428812948092239617", ... }}`
 
 	For a list of example payloads, see Daybreak's documentation: https://census.daybreakgames.com/#websocket-details
 	"""
 	@type game_event :: {String.t(), map()}
 
+	@world_map %{
+		"Connery" => 1,
+    "Miller" => 10,
+    "Cobalt" => 13,
+    "Emerald" => 17,
+    "Jaeger" => 19,
+    "Briggs" => 25,
+		"Soltech" => 40,
+		"all" => "all"
+	}
+
 	@type event_subscriptions :: {:events, list(String.t() | integer())}
 	@type world_subscriptions :: {:worlds, list(String.t() | integer())}
 	@type character_subscriptions :: {:characters, list(String.t() | integer())}
-	@type subscription_set :: [event_subscriptions | world_subscriptions | character_subscriptions]
+	@type subscriptions :: [event_subscriptions | world_subscriptions | character_subscriptions]
+
+	@enforce_keys :pid
+	defstruct [:pid, events: ["all"], worlds: ["all"], characters: ["all"]]
 
 	@doc """
-	Connects to the event stream. If the socket has already been opened, `subscriptions` will be aggregated.
+	Starts the client process, subscribing to the event stream and listens for relevant events.
 	"""
-	@spec start_link(atom, subscription_set) :: {:ok, pid}
+	@spec start_link(atom, subscriptions) :: {:ok, pid}
 	def start_link(module, subscriptions) do
 
 		Task.start_link(fn ->
-			case Process.whereis(PS2.Socket) do # Doesn't work when 2+ SocketClients are started under a supervisor. Would need to start the socket beforehand and retrieve subscription data via config.exs
-				nil -> PS2.Socket.start_link(subscriptions)
-				_ -> WebSockex.cast(PS2.Socket, {:subscribe, {self(), subscriptions}})
-			end
-			event_dispatch_loop(module, subscriptions)
+			WebSockex.cast(PS2.Socket, {:subscribe,
+				%PS2.SocketClient{
+					pid: self(),
+					events: Keyword.get(subscriptions, :events, ["all"]),
+					worlds: Keyword.get(subscriptions, :worlds, ["all"]) |> Enum.map(&Map.get(@world_map, &1) |> to_string) |> Enum.filter(& &1 !== ""),
+					characters: Keyword.get(subscriptions, :characters, ["all"])
+				}
+			})
+			proc_loop(module, subscriptions)
 		end)
 	end
 
-	defp event_dispatch_loop(module, subscriptions) do
+	defp proc_loop(module, subscriptions) do
 		receive do
 			{:GAME_EVENT, event} ->
-				IO.puts "#{inspect self()} Got game event"
 				Task.start_link(fn -> module.handle_event(event) end)
-				event_dispatch_loop(module, subscriptions)
+				proc_loop(module, subscriptions)
 			_ ->
-				event_dispatch_loop(module, subscriptions)
+				proc_loop(module, subscriptions)
 		end
 	end
 
