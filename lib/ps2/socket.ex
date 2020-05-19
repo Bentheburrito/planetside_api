@@ -13,7 +13,7 @@ defmodule PS2.Socket do
 
 	def handle_frame({_type, nil}, state), do: {:ok, state}
 	def handle_frame({_type, msg}, state) do
-		Task.start_link(fn -> handle_message(msg, state) end)
+		handle_message(msg, state)
     {:ok, state}
   end
 
@@ -25,8 +25,14 @@ defmodule PS2.Socket do
 		{:ok, new_state}
 	end
 
+	def handle_connect(_conn, state) do
+		Logger.info("Connected to Event Streaming.")
+		if length(state[:clients]) > 0, do: subscribe(state)
+		{:ok, state}
+	end
+
 	def handle_disconnect(_status_map, state) do
-		IO.puts ("Disconnected from socket, attempting to reconnect.")
+		Logger.info("Disconnected from Event Streaming, attempting to reconnect.")
 		{:reconnect, state}
 	end
 
@@ -35,17 +41,17 @@ defmodule PS2.Socket do
 	defp handle_message(msg, state) do
 		case Jason.decode(msg) do
 			{:ok, %{"connected" => "true"}} ->
-				IO.puts("Connected to the socket.")
+				Logger.info("Received connected msg.")
 				# if length(state[:clients]) > 0, do: subscribe(state)
 
 			{:ok, %{"subscription" => subscriptions}} ->
-				IO.puts "Subscribed to events #{subscriptions["eventNames"] |> Enum.join(", ")}, worlds: #{subscriptions["worlds"] |> Enum.join(", ")}, character count: #{subscriptions["characterCount"]}."
+				Logger.info("Subscribed to events #{subscriptions["eventNames"] |> Enum.join(", ")}, worlds: #{subscriptions["worlds"] |> Enum.join(", ")}, character count: #{subscriptions["characterCount"]}.")
 
 			{:ok, message} ->
 				with {:ok, event} <- create_event(message),
 				do: send_event({:GAME_EVENT, event}, state)
 
-			{:error, e} -> IO.inspect(e)
+			{:error, e} -> Logger.error(e)
 		end
 	end
 
@@ -70,22 +76,26 @@ defmodule PS2.Socket do
 	end
 
 	defp create_event(message) do
-		with payload when not is_nil(payload) <- message["payload"],
-			event_name when not is_nil(event_name) <- payload["event_name"] do
+		with payload when not is_nil(payload) and is_map(payload) <- message["payload"] || message["online"],
+			event_name when not is_nil(event_name) <- payload["event_name"] || message["type"], do:
 				{:ok, {event_name, Map.delete(payload, "event_name")}}
-		# else with
-		end
 	end
 
-	defp send_event({_event_type, {event_name, payload}} = event, state) do
+	defp send_event({_event_type, event} = game_event, state) do
 		with clients <- Keyword.get(state, :clients, nil), do:
-			Enum.each(clients, fn client ->
-				if ( # If the client's subscriptions match the payload params, send the event.
-					Enum.member?(client.events, event_name) and
-					(not Map.has_key?(payload, "world_id") or Enum.member?(client.worlds, "all") or Map.get(payload, "world_id") in client.worlds) and
-					(not Map.has_key?(payload, "character_id") or Enum.member?(client.characters, "all") or Map.get(payload, "character_id") in client.characters)
-				 ), do:
-						send(client.pid, event)
-			end)
+			Enum.each(clients, &(if is_subscribed?(&1, event), do: send(&1.pid, game_event)))
+	end
+
+	defp is_subscribed?(client, {event_name, payload} = _event) do
+		(
+			# True if the client is subscribed to the event.
+			Enum.member?(client.events, event_name) and
+			# If the payload doesn't have a "world_id" key, skip the test (true).
+			# If the client is subscribed to all worlds, pass the test (true).
+			# If the client is subscribed to events from this world, pass the test (true).
+			(not Map.has_key?(payload, "world_id") or Enum.member?(client.worlds, "all") or Map.get(payload, "world_id") in client.worlds) and
+			# Same as above but with characters.
+			(not Map.has_key?(payload, "character_id") or Enum.member?(client.characters, "all") or Map.get(payload, "character_id") in client.characters)
+		)
 	end
 end

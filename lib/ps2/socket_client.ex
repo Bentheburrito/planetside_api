@@ -3,8 +3,9 @@ defmodule PS2.SocketClient do
 	A module that handles interaction with Daybreak Games' Planetside 2 Event Streaming service.
 
 	## Implementation
-	To handle incoming game events, your module should `use PS2.SocketClient` and call `PS2.SocketClient.start_link/2`,
-	to start receiving events. You can now define `handle_event/1` functions to pattern match on your desired events.
+	To handle incoming game events, your module should `use PS2.SocketClient` and call `PS2.SocketClient.start_link/2` passing
+	the desired subscription info (Example implementation below). Note that you should have a catch-all `handle_event/1` callback
+	in the case of unhandled events.
 
 	Example implementation:
 	```elixir
@@ -29,6 +30,8 @@ defmodule PS2.SocketClient do
 	The second param of `PS2.SocketClient.start_link/2` is the subscription info your client is interested in. See the link below
 	to find a list of all event names. You may also specify "all" in any of the subscription fields (Note: if a field is missing,
 	"all" will be the default.)
+	If you want to receive heartbeat messages (which contain world online-status updates), include "heartbeat" in your event
+	subscriptions.
 
 	For more information, see the official documentation: https://census.daybreakgames.com/#websocket-details
 	"""
@@ -70,7 +73,6 @@ defmodule PS2.SocketClient do
 	"""
 	@spec start_link(atom, subscriptions) :: {:ok, pid}
 	def start_link(module, subscriptions) do
-
 		Task.start_link(fn ->
 			WebSockex.cast(PS2.Socket, {:subscribe,
 				%PS2.SocketClient{

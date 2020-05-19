@@ -25,6 +25,8 @@ defmodule PS2.API.Query do
 	"""
 
 	alias PS2.API.Query
+	require Logger
+
 	defstruct collection: nil, terms: %{}, subqueries: []
 
 	@spec new([]) :: %Query{}
@@ -103,8 +105,8 @@ defmodule PS2.API.Query do
 	down your queries. If a lower case version of a field is available use that
 	instead for faster performance.
 	"""
-	@spec case_sense(%Query{}, boolean()) :: %Query{}
-	def case_sense(%Query{} = q, value), do:
+	@spec case_sensitive(%Query{}, boolean()) :: %Query{}
+	def case_sensitive(%Query{} = q, value), do:
 		%Query{q | terms: Map.put(q.terms, "c:case", value)}
 
 	@doc """
@@ -224,11 +226,13 @@ defmodule PS2.API.Query do
 		%Query{q | terms: Map.put(q.terms, "c:retry", value)}
 
 	@doc """
-	Add a `term`=`value` to filter by on the collection. i.e. /character?character_id=1234123412341234123
+	Add a `term`=`value` to filter query results. i.e. filter by a character ID:  `.../character?character_id=1234123412341234123`
 	"""
 	@spec term(%Query{}, String.t(), String.t()) :: %Query{}
-	def term(%Query{collection: col}, term, _value) when term == "type" and col != "world_event", do:
-		{:error, "`type` term only available on the `world_event` collection"}
+	def term(%Query{collection: col} = q, term, value) when term == "type" and col != "world_event" do
+		Logger.warn("Term `type` won't have an affect on collections other than `world_event`")
+		%Query{q | terms: Map.put(q.terms, term, value)}
+	end
 	def term(%Query{} = q, term, value), do:
 		%Query{q | terms: Map.put(q.terms, term, value)}
 
