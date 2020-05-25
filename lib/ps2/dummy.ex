@@ -11,7 +11,7 @@ defmodule DummySupervisor do
 
 		children = [
 			{Dummy, [events: ["PlayerLogin", "PlayerLogout", "GainExperience", "Death", "VehicleDestroy", "PlayerFacilityCapture", "PlayerFacilityDefend", "BattleRankUp"], worlds: ["all"], characters: ["all"]]},
-			{OtherDummy, [events: ["FacilityControl", "MetagameEvent", "ContinentLock", "GainExperience", "heartbeat"], worlds: ["Connery", "Miller", "Cobalt", "Emerald"], characters: ["all"], id: Dummy2]}
+			{OtherDummy, [events: ["FacilityControl", "MetagameEvent", "ContinentLock", "GainExperience", "heartbeat"], worlds: ["Connery", "Miller", "Cobalt", "Emerald"], characters: ["all"]]}
 		]
 
 		Supervisor.init(children, strategy: :one_for_one)

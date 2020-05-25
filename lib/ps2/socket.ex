@@ -15,33 +15,44 @@ defmodule PS2.Socket do
 	def handle_frame({_type, msg}, state) do
 		handle_message(msg, state)
     {:ok, state}
-  end
+	end
 
   def handle_cast({:send, frame}, state), do: {:reply, frame, state}
 
 	def handle_cast({:subscribe, %SocketClient{} = new_client}, state) do
 		new_state = Keyword.update(state, :clients, [new_client], &([new_client | &1]))
+
 		subscribe(new_state)
+		send(new_client.pid, {:STATUS_EVENT, {"Subscribed", :ok}})
+		Process.monitor(new_client.pid)
+
 		{:ok, new_state}
 	end
 
 	def handle_connect(_conn, state) do
-		Logger.info("Connected to Event Streaming.")
+		Logger.info("Connected to the Socket.")
 		if length(state[:clients]) > 0, do: subscribe(state)
 		{:ok, state}
 	end
 
 	def handle_disconnect(_status_map, state) do
-		Logger.info("Disconnected from Event Streaming, attempting to reconnect.")
+		Logger.info("Disconnected from the Socket, attempting to reconnect.")
 		{:reconnect, state}
 	end
+
+	def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+		new_state = Keyword.update!(state, :clients, &List.delete(&1, Enum.find(state[:clients], fn client -> client.pid === pid end)))
+		{:ok, new_state}
+	end
+
+	def handle_info(_, state), do: {:ok, state}
 
 	# Data Transformation + Dispatch
 
 	defp handle_message(msg, state) do
 		case Jason.decode(msg) do
 			{:ok, %{"connected" => "true"}} ->
-				Logger.info("Received connected msg.")
+				Logger.info("Received connected message.")
 				# if length(state[:clients]) > 0, do: subscribe(state)
 
 			{:ok, %{"subscription" => subscriptions}} ->
@@ -84,6 +95,7 @@ defmodule PS2.Socket do
 	defp send_event({_event_type, event} = game_event, state) do
 		with clients <- Keyword.get(state, :clients, nil), do:
 			Enum.each(clients, &(if is_subscribed?(&1, event), do: send(&1.pid, game_event)))
+		:ok
 	end
 
 	defp is_subscribed?(client, {event_name, payload} = _event) do

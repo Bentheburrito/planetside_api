@@ -1,11 +1,12 @@
 defmodule PS2.SocketClient do
 	@moduledoc ~S"""
-	A module that handles interaction with Daybreak Games' Planetside 2 Event Streaming service.
+	A module that handles all interaction with Daybreak Games' Planetside 2 Event Streaming service.
 
 	## Implementation
-	To handle incoming game events, your module should `use PS2.SocketClient` and call `PS2.SocketClient.start_link/2` passing
-	the desired subscription info (Example implementation below). Note that you should have a catch-all `handle_event/1` callback
-	in the case of unhandled events.
+	To handle incoming game events, your module should `use PS2.SocketClient` and call `PS2.SocketClient.start_link/2`, passing
+	the desired subscription info (Example implementation below). Events will now be sent to your SocketClient, which you handle
+	though `handle_event/1`. Note that you should have a catch-all `handle_event/1` callback in the case of unhandled events
+	(see example).
 
 	Example implementation:
 	```elixir
@@ -21,6 +22,7 @@ defmodule PS2.SocketClient do
 			IO.puts "PlayerLogin: #{payload["character_id"]}"
 		end
 
+		# Catch-all callback.
 		@impl PS2.SocketClient
 		def handle_event({event_name, _payload}) do
 			IO.puts "Unhandled event: #{event_name}"
@@ -36,7 +38,7 @@ defmodule PS2.SocketClient do
 	For more information, see the official documentation: https://census.daybreakgames.com/#websocket-details
 	"""
 
-	@callback handle_event(game_event) :: any
+	@callback handle_event(event) :: any
 
 	@typedoc """
 	A tuple representing an in-game event. The first element is the event name (String), and the second element
@@ -47,23 +49,21 @@ defmodule PS2.SocketClient do
 
 	For a list of example payloads, see Daybreak's documentation: https://census.daybreakgames.com/#websocket-details
 	"""
-	@type game_event :: {String.t(), map()}
+	@type event :: {String.t(), map()}
 
 	@world_map %{
-		"Connery" => 1,
-    "Miller" => 10,
-    "Cobalt" => 13,
-    "Emerald" => 17,
-    "Jaeger" => 19,
-    "Briggs" => 25,
-		"Soltech" => 40,
+		"Connery" => "1",
+    "Miller" => "10",
+    "Cobalt" => "13",
+    "Emerald" => "17",
+    "Jaeger" => "19",
+    "Briggs" => "25",
+		"Soltech" => "40",
 		"all" => "all"
 	}
 
-	@type event_subscriptions :: {:events, list(String.t() | integer())}
-	@type world_subscriptions :: {:worlds, list(String.t() | integer())}
-	@type character_subscriptions :: {:characters, list(String.t() | integer())}
-	@type subscriptions :: [event_subscriptions | world_subscriptions | character_subscriptions]
+	@type subscription :: {:events, [String.t()]} | {:worlds, [String.t()]} | {:characters, [integer()]}
+	@type subscription_list :: [subscription] | []
 
 	@enforce_keys :pid
 	defstruct [:pid, events: ["all"], worlds: ["all"], characters: ["all"]]
@@ -71,21 +71,20 @@ defmodule PS2.SocketClient do
 	@doc """
 	Starts the client process, subscribing to the event stream and listens for relevant events.
 	"""
-	@spec start_link(atom, subscriptions) :: {:ok, pid}
-	def start_link(module, subscriptions) do
-		Task.start_link(fn ->
-			WebSockex.cast(PS2.Socket, {:subscribe,
-				%PS2.SocketClient{
-					pid: self(),
-					events: Keyword.get(subscriptions, :events, ["all"]),
-					worlds: Keyword.get(subscriptions, :worlds, ["all"]) |> Enum.map(&Map.get(@world_map, &1) |> to_string) |> Enum.filter(& &1 !== ""),
-					characters: Keyword.get(subscriptions, :characters, ["all"])
-				}
-			})
+	@spec start_link(atom, subscription_list) :: {:ok, pid}
+	def start_link(module, subscriptions) when not is_nil(subscriptions) do
+		pid = spawn(fn ->
+			struct_opts = Keyword.put(subscriptions, :pid, self()) |> Keyword.update(:worlds, ["all"], &world_ids_from_name/1)
+
+			if not is_nil(name = Keyword.get(subscriptions, :name)), do: Process.register(self(), name)
+
+			WebSockex.cast(PS2.Socket, {:subscribe, struct(PS2.SocketClient, struct_opts)})
 			proc_loop(module, subscriptions)
 		end)
+		{:ok, pid}
 	end
 
+	@doc false
 	defp proc_loop(module, subscriptions) do
 		receive do
 			{:GAME_EVENT, event} ->
@@ -94,6 +93,10 @@ defmodule PS2.SocketClient do
 			_ ->
 				proc_loop(module, subscriptions)
 		end
+	end
+
+	defp world_ids_from_name(worlds) do
+		 Enum.map(worlds, &Map.get(@world_map, &1)) |> Enum.filter(& &1 !== nil)
 	end
 
 	def child_spec(opts) do
@@ -108,9 +111,8 @@ defmodule PS2.SocketClient do
 			@behaviour PS2.SocketClient
 
 			def child_spec(opts) do
-				id = Keyword.get(opts, :id, __MODULE__)
         %{
-          id: id,
+          id: __MODULE__,
           start: {__MODULE__, :start_link, [opts]}
         }
       end
