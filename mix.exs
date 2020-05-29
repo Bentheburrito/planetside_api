@@ -6,8 +6,13 @@ defmodule PS2.MixProject do
       app: :planetside_api,
       version: "0.1.0",
       elixir: "~> 1.10",
-      start_permanent: Mix.env() == :prod,
-      deps: deps()
+			start_permanent: Mix.env() == :prod,
+			description: description(),
+			deps: deps(),
+			package: package(),
+			name: "PS2",
+			source_url: "https://github.com/Bentheburrito/planetside_api",
+			homepage_url: "https://github.com/Bentheburrito/planetside_api"
     ]
   end
 
@@ -16,13 +21,26 @@ defmodule PS2.MixProject do
 			extra_applications: [:logger],
 			mod: {PS2, []}
     ]
-  end
+	end
 
   defp deps do
     [
       {:jason, "~> 1.2"},
 			{:httpoison, "~> 1.6"},
-			{:websockex, "~> 0.4.2"}
+			{:websockex, "~> 0.4.2"},
+			{:ex_doc, "~> 0.14", only: :dev, runtime: false}
     ]
-  end
+	end
+
+	defp description do
+		"A wrapper for the Planetside 2 API and Event Streaming service."
+	end
+
+	defp package do
+		[
+      name: "planetside_api",
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/Bentheburrito/planetside_api"}
+    ]
+	end
 end
