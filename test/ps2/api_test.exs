@@ -31,13 +31,13 @@ defmodule PS2.APITest do
 	describe "API" do
 		test "can retrieve a character name" do
 			q = Query.new() |> collection("character_name") |> term("name.first_lower", "snowful") |> show("character_id")
-			assert PS2.API.send_query(q) === {:ok, %{"returned" => 1, "character_name_list" => [%{"character_id" => "5428713425545165425"}]}}
+			assert PS2.API.send_query(q) === {:ok, %{:returned => 1, :character_name_list => [%{:character_id => "5428713425545165425"}]}}
 		end
 
 		test "can retrieve collection list" do
 			{:ok, res} = PS2.API.get_collections()
-			assert res["returned"] === 111
-			assert Map.has_key?(res, "datatype_list")
+			assert res[:returned] === 111
+			assert Map.has_key?(res, :datatype_list)
 		end
 
 		test "query with bad collection returns a PS2.API.Error with message \"No data found.\"" do

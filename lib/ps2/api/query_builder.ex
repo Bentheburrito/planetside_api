@@ -2,7 +2,7 @@ defmodule PS2.API.QueryBuilder do
 	@moduledoc """
 	A module for creating Census API queries in a clean manner via pipelines.
 
-	## Example
+	### Example
 		iex> import PS2.API.QueryBuilder
 		PS2.API.QueryBuilder
 		iex> alias PS2.API.Query
@@ -29,8 +29,21 @@ defmodule PS2.API.QueryBuilder do
 
 	You can then send the query to the api using `PS2.API.send_query/1`.
 
-	## Joining Queries
+	## Search Modifiers
+	The Census API provides [search modifiers](https://census.daybreakgames.com/#search-modifier) for filtering query results.
+	You can pass an atom as the third parameter in `term/4` representing one of
+	these search modifiers. The recognized atoms are the following:
+	```
+	:greater_than
+	:greater_than_or_equal
+	:less_than
+	:less_than_or_equal
+	:starts_with
+	:contains
+	:not
+	```
 
+	## Joining Queries
 	You can use `Join`s to gather data from multiple collections within one query,
 	like so:
 
@@ -53,8 +66,9 @@ defmodule PS2.API.QueryBuilder do
 	"online_status", which contains the result of the `Join` (in this case, the
 	player's online	status.)
 
-	You can create as many `Join`s as you like with `QueryBuilder.join/2`. However,
-	you can also nest `Join`s
+	You can create as many adjacent `Join`s as you'd like by repeatedly piping
+	a query through `QueryBuilder.join/2`. You can also nest other `Join`s via
+	`QueryBuilder.join/2` as well:
 
 	```elixir
 	import PS2.API.QueryBuilder
@@ -65,11 +79,11 @@ defmodule PS2.API.QueryBuilder do
 
 	char_name_join =
 		Join.new(collection: "character_name", on: "character_id", inject_at: "c_name")
-		|> join_adjacent(char_achieve_join)
 
 	online_status_join =
 		Join.new(collection: "characters_online_status")
-		|> join_nested(char_name_join)
+		|> join(char_name_join)
+		|> join(char_achieve_join)
 
 	q =
 		%Query{}
@@ -78,8 +92,25 @@ defmodule PS2.API.QueryBuilder do
 		|> show(["character_id", "faction_id"])
 		|> join(online_status_join)
 	```
-	Using `join_adjacent/2` and `join_nested/2`, we can join any collection with common
-	fields
+
+	## Trees
+	You can organize the returned data by a field within the data, using the
+	`QueryBuilder.tree/2`.
+	world_event?type=METAGAME&c:limit=30&c:lang=en&c:join=metagame_event^inject_at:info&c:tree=field:world_id^list:1
+	```elixir
+	import PS2.API.QueryBuilder
+	alias PS2.API.{Query, Tree}
+
+	%Query{}
+	|> collection("world_event")
+	|> term("type", "METAGAME")
+	|> lang("en")
+	|> tree(
+		%Tree{}
+		|> field("world_id")
+		|> list(true)
+	)
+	```
 	"""
 
 	@modifier_map %{
@@ -275,23 +306,28 @@ defmodule PS2.API.QueryBuilder do
 		%Query{q | terms: Map.put(q.terms, "c:lang", value)}
 
 	@doc """
-	Adds an adjacent join to a query. See the "Using c:join to join collections dynamically"
-	section at https://census.daybreakgames.com/#query-commands to learn more about the APIs
-	c:join parameter.
+	Adds a join to a query.
+	See the "Using c:join to join collections dynamically"
+	section at https://census.daybreakgames.com/#query-commands to learn more about joining
+	queries.
 	### c:join API Documentation:
 	Meant to replace c:resolve, useful for dynamically joining (resolving)
 	multiple data types in one query.
 	"""
-	@spec join(Query.t(), %Join{}) :: %Query{}
+	@spec join(Query.t(), Join.t()) :: Query.t()
 	def join(%Query{} = q, %Join{} = join), do:
 		%Query{q | joins: [join | q.joins]}
+
+	@spec join(Join.t(), Join.t()) :: Join.t()
+	def join(%Join{} = join, %Join{} = new_join), do:
+		%Join{join | joins: [new_join | join.joins]}
 
 	@doc """
 	Adds a c:tree term
 	### API Documentaion:
 	Useful for rearranging lists of data into trees of data. See below for details.
 	"""
-	@spec tree(Query.t(), %Tree{}) :: %Query{}
+	@spec tree(Query.t(), Tree.t()) :: %Query{}
 	def tree(%Query{} = q, %Tree{} = tree), do:
 	%Query{q | tree: tree}
 
@@ -379,20 +415,6 @@ defmodule PS2.API.QueryBuilder do
 	def outer(%Join{} = join, val), do:
 		%Join{join | terms: Map.put(join.terms, :outer, val)}
 
-	@doc """
-	Add an adjacent join.
-	"""
-	@spec join_adjacent(Join.t(), Join.t()) :: %Join{}
-	def join_adjacent(%Join{} = join, %Join{} = new_join), do:
-		%Join{join | adjacent_joins: [new_join | join.adjacent_joins]}
-
-	@doc """
-	Add a nested join.
-	"""
-	@spec join_nested(Join.t(), Join.t()) :: %Join{}
-	def join_nested(%Join{} = join, %Join{} = new_join), do:
-		%Join{join | nested_joins: [new_join | join.nested_joins]}
-
 	### Tree specific functions
 
 	@doc """
@@ -400,7 +422,7 @@ defmodule PS2.API.QueryBuilder do
 	### API Documentaion:
 	Used to tell the tree where to start. By default, the list of objects at the root will be formatted as a tree.
 	"""
-	@spec start_field(Tree.t(), field_name()) :: %Tree{}
+	@spec start_field(Tree.t(), field_name) :: %Tree{}
 	def start_field(%Tree{} = tree, field), do: %Tree{tree | terms: Map.put(tree.terms, :start, field)}
 
 	@doc """
@@ -408,7 +430,7 @@ defmodule PS2.API.QueryBuilder do
 	### API Documentation:
 	The field to remove and use as in the data structure, or tree.
 	"""
-	@spec field(Tree.t(), field_name()) :: %Tree{}
+	@spec field(Tree.t(), field_name) :: %Tree{}
 	def field(%Tree{} = tree, field), do: %Tree{tree | terms: Map.put(tree.terms, :field, field)}
 
 	@doc """

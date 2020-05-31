@@ -50,13 +50,13 @@ defmodule PS2.Socket do
 	# Data Transformation + Dispatch
 
 	defp handle_message(msg, state) do
-		case Jason.decode(msg) do
-			{:ok, %{"connected" => "true"}} ->
+		case Jason.decode(msg, keys: :atoms) do
+			{:ok, %{:connected => "true"}} ->
 				Logger.info("Received connected message.")
 				# if length(state[:clients]) > 0, do: subscribe(state)
 
-			{:ok, %{"subscription" => subscriptions}} ->
-				Logger.info("Subscribed to events #{subscriptions["eventNames"] |> Enum.join(", ")}, worlds: #{subscriptions["worlds"] |> Enum.join(", ")}, character count: #{subscriptions["characterCount"]}.")
+			{:ok, %{:subscription => subscriptions}} ->
+				Logger.info("Subscribed to events #{subscriptions[:eventNames] |> Enum.join(", ")}, worlds: #{subscriptions[:worlds] |> Enum.join(", ")}, character count: #{subscriptions[:characterCount]}.")
 
 			{:ok, message} ->
 				with {:ok, event} <- create_event(message),
@@ -87,9 +87,9 @@ defmodule PS2.Socket do
 	end
 
 	defp create_event(message) do
-		with payload when not is_nil(payload) and is_map(payload) <- message["payload"] || message["online"],
-			event_name when not is_nil(event_name) <- payload["event_name"] || message["type"], do:
-				{:ok, {event_name, Map.delete(payload, "event_name")}}
+		with payload when not is_nil(payload) and is_map(payload) <- message[:payload] || message[:online],
+			event_name when not is_nil(event_name) <- payload[:event_name] || message[:type], do:
+				{:ok, {to_string(event_name), Map.delete(payload, :event_name)}}
 	end
 
 	defp send_event({_event_type, event} = game_event, state) do
@@ -105,9 +105,9 @@ defmodule PS2.Socket do
 			# If the payload doesn't have a "world_id" key, skip the test (true).
 			# If the client is subscribed to all worlds, pass the test (true).
 			# If the client is subscribed to events from this world, pass the test (true).
-			(not Map.has_key?(payload, "world_id") or Enum.member?(client.worlds, "all") or Map.get(payload, "world_id") in client.worlds) and
+			(not Map.has_key?(payload, :world_id) or Enum.member?(client.worlds, "all") or Map.get(payload, :world_id) in client.worlds) and
 			# Same as above but with characters.
-			(not Map.has_key?(payload, "character_id") or Enum.member?(client.characters, "all") or Map.get(payload, "character_id") in client.characters)
+			(not Map.has_key?(payload, :character_id) or Enum.member?(client.characters, "all") or Map.get(payload, :character_id) in client.characters)
 		)
 	end
 end

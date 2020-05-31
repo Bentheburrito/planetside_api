@@ -10,7 +10,7 @@ defmodule PS2.SocketClient do
 
 	Example implementation:
 	```elixir
-	defmodule MyApp.Client do
+	defmodule MyApp.EventStream do
 		use PS2.SocketClient
 
 		def start_link do

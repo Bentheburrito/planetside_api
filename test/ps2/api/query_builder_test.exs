@@ -43,9 +43,8 @@ defmodule PS2.API.QueryBuilderTest do
 				|> term("character_id", "5428713425545165425")
 			assert join ===
 				%PS2.API.Join{
-					adjacent_joins: [],
 					collection: "characters_online_status",
-					nested_joins: [],
+					joins: [],
 					terms: %{
 						:on => "character_id",
 						:show => "character_id'name",
@@ -87,9 +86,8 @@ defmodule PS2.API.QueryBuilderTest do
 					collection: "test_col",
 					joins: [
 						%PS2.API.Join{
-							adjacent_joins: [],
 							collection: "test_col_join",
-							nested_joins: [],
+							joins: [],
 							terms: %{
 								hide: "some_other_field'another_field",
 								inject_at: "name",
@@ -102,9 +100,7 @@ defmodule PS2.API.QueryBuilderTest do
 					tree: %PS2.API.Tree{terms: %{field: "some_field", list: 1}}
 				}
 		end
-		#https://census.daybreakgames.com/s:ps2statusbot/get/ps2:v2/
-		#character?name.first=Snowful&c:show=character_id,faction_id
-		#&c:join=characters_online_status(character_name^on:character_id^to:character_id,characters_achievement^on:character_id^to:character_id),characters_stat_by_faction
+
 		test "can create adjacent and nested joins" do
 			q =
 				%Query{}
@@ -113,12 +109,12 @@ defmodule PS2.API.QueryBuilderTest do
 				|> show(["character_id", "faction_id"])
 				|> join(
 					Join.new(collection: "characters_online_status")
-					|> join_nested(
+					|> join(
 						Join.new(collection: "character_name", on: "character_id", to: "character_id")
 						|> inject_at("c_name")
-						|> join_adjacent(
-							Join.new(collection: "characters_achievement", on: "character_id", to: "character_id")
-						)
+					)
+					|> join(
+						Join.new(collection: "characters_achievement", on: "character_id", to: "character_id")
 					)
 				)
 				|> join(
@@ -128,27 +124,22 @@ defmodule PS2.API.QueryBuilderTest do
 				collection: "character",
 				joins: [
 					%PS2.API.Join{
-						adjacent_joins: [],
 						collection: "characters_stat_by_faction",
-						nested_joins: [],
+						joins: [],
 						terms: %{}
 					},
 					%PS2.API.Join{
-						adjacent_joins: [],
 						collection: "characters_online_status",
-						nested_joins: [
+						joins: [
 							%PS2.API.Join{
-								adjacent_joins: [
-									%PS2.API.Join{
-										adjacent_joins: [],
-										collection: "characters_achievement",
-										nested_joins: [],
-										terms: %{on: "character_id", to: "character_id"}
-									}
-								],
+								collection: "characters_achievement",
+								joins: [],
+								terms: %{on: "character_id", to: "character_id"}
+							},
+							%PS2.API.Join{
 								collection: "character_name",
-								nested_joins: [],
-								terms: %{on: "character_id", to: "character_id", inject_at: "c_name"}
+								joins: [],
+								terms: %{inject_at: "c_name", on: "character_id", to: "character_id"}
 							}
 						],
 						terms: %{}
@@ -166,34 +157,24 @@ defmodule PS2.API.QueryBuilderTest do
 				Query.new(collection: "character_name")
 				|> join(
 					Join.new(collection: "character")
-					|> join_nested(
+					|> join(
 						Join.new(collection: "faction")
 					)
-					|> join_adjacent(
-						Join.new(collection: "characters_online_status", on: "character_id") |> list(true)
-					)
+				)
+				|> join(
+					Join.new(collection: "characters_online_status", on: "character_id") |> list(true)
 				)
 			assert q2 === %PS2.API.Query{
 				collection: "character_name",
 				joins: [
 					%PS2.API.Join{
-						adjacent_joins: [
-							%PS2.API.Join{
-								adjacent_joins: [],
-								collection: "characters_online_status",
-								nested_joins: [],
-								terms: %{list: 1, on: "character_id"}
-							}
-						],
+						collection: "characters_online_status",
+						joins: [],
+						terms: %{list: 1, on: "character_id"}
+					},
+					%PS2.API.Join{
 						collection: "character",
-						nested_joins: [
-							%PS2.API.Join{
-								adjacent_joins: [],
-								collection: "faction",
-								nested_joins: [],
-								terms: %{}
-							}
-						],
+						joins: [%PS2.API.Join{collection: "faction", joins: [], terms: %{}}],
 						terms: %{}
 					}
 				],

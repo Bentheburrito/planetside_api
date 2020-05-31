@@ -5,12 +5,11 @@ defmodule PS2.API.Join do
 
 	alias PS2.API.Join
 
-	defstruct [:collection, terms: %{}, adjacent_joins: [], nested_joins: []]
+	defstruct [:collection, terms: %{}, joins: []]
 	@type t() :: %Join{
 		collection: String.t(),
 		terms: map(),
-		adjacent_joins: t(),
-		nested_joins: t()
+		joins: [t()]
 	}
 
 	@type opts :: [

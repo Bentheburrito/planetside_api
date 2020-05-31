@@ -8,9 +8,10 @@ defmodule PS2.Supervisor do
 	@impl true
 	def init(:ok) do
 
-		children = [
-			{PS2.Socket, []},
-		]
+		children = if Application.fetch_env(:planetside_api, :event_streaming) != {:ok, false}, do:
+		[
+			{PS2.Socket, []}
+		], else: []
 
 		Supervisor.init(children, strategy: :one_for_one)
 	end

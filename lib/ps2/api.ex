@@ -4,10 +4,12 @@ defmodule PS2.API do
 	"""
 
 	use HTTPoison.Base
-
 	alias PS2.API.{Query, Join, Tree}
 
-	@type result :: %{}
+	@type result :: %{
+		payload: %{},
+		returned: integer
+	}
 
 	def process_url(query) do
 		sid = Application.fetch_env!(:planetside_api, :service_id)
@@ -21,7 +23,7 @@ defmodule PS2.API do
 	def send_query(query) when is_bitstring(query) do
 
 		with {:ok, res} <- get(query),
-		{:ok, %{"error" => m}} <- Jason.decode(res.body), do:
+		{:ok, %{:error => m}} <- Jason.decode(res.body, keys: :atoms), do:
 		{:error, %PS2.API.Error{message: m}}
 	end
 	def send_query(%Query{} = q) do
@@ -31,7 +33,7 @@ defmodule PS2.API do
 
 	def get_collections do
 		with {:ok, res} <- get(""),
-		{:ok, %{"error" => m}} <- Jason.decode(res.body), do:
+		{:ok, %{:error => m}} <- Jason.decode(res.body, keys: :atoms), do:
 		{:error, %PS2.API.Error{message: m}}
 	end
 
@@ -56,9 +58,7 @@ defmodule PS2.API do
 				{:terms, terms} when map_size(terms) > 0 -> "terms:#{encode_terms(terms, "'")}"
 				{key, val} when not is_nil(val) -> "#{key}:#{encode_term_values(val)}"
 			end)
-		<> (length(join.nested_joins) > 0 && "(#{Enum.map_join(join.nested_joins, ",", &encode_join/1)})" || "")
-		<> (length(join.adjacent_joins) > 0 && "," || "")
-		<> Enum.map_join(join.adjacent_joins, ",", &encode_join/1)
+		<> (length(join.joins) > 0 && "(#{Enum.map_join(join.joins, ",", &encode_join/1)})" || "")
 	end
 
 	defp encode_tree(%Tree{terms: %{field: field}} = tree) when not is_nil(field) do
