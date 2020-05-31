@@ -105,7 +105,7 @@ for more information on joins.
 See the PS2.API.QueryBuilder documentation for in-depth explanations and
 examples.
 
-## Even Streaming
+## Event Streaming
 
 Daybreak provides their [Event Streaming](https://census.daybreakgames.com/#what-is-websocket)
 service through websockets to provide developers with live in-game
