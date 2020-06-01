@@ -4,7 +4,7 @@ defmodule PS2.MixProject do
   def project do
     [
       app: :planetside_api,
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
       description: description(),
@@ -33,7 +33,7 @@ defmodule PS2.MixProject do
   end
 
   defp description do
-    "A wrapper for the Planetside 2 API and Event Streaming service."
+    "A wrapper for the PlanetSide 2 API and Event Streaming service for Elixir."
   end
 
   defp package do

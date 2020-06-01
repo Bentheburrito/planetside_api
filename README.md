@@ -1,4 +1,9 @@
-# Planetside 2 API Wrapper
+# Planetside 2 API Wrapper v0.1.2
+
+A library that provides clean PS2 Census query creation
+and Event Stream management for Elixir developers.
+
+View the full documentation [on hexdocs.pm](https://hexdocs.pm/planetside_api/PS2.API.html#content)
 
 ## Installation
 
@@ -7,7 +12,7 @@ Add `planetside_api` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:planetside_api, "~> 0.1.0"}
+    {:planetside_api, "~> 0.1.2"}
   ]
 end
 ```
@@ -15,8 +20,10 @@ end
 Configure your service ID in `config/config.exs`
 ```elixir
 import Config
-config :planetside_api, service_id: "your_service_id
+config :planetside_api, service_id: "service_id_here"
 ```
+That's it! You can now create/send queries and setup Event
+Streaming.
 
 ## Census API Queries
 This wrapper provides several data structures and functions
@@ -26,7 +33,8 @@ and added to via the functions from `PS2.API.QueryBuilder`.
 
 `Query` is a struct representation of a Census query that is
 encoded into its url form when passed to `PS2.API.send_query/1`
-or `PS2.API.encode/1`.
+or `PS2.API.encode/1`. A `Query` can contain many `Join`s and
+a `Tree`.
 
 ### Example query with a join and tree
 ```elixir
@@ -118,12 +126,18 @@ defmodule MyApp.EventStream do
   use PS2.SocketClient
 
   def start_link do
-    PS2.SocketClient.start_link(__MODULE__, [events: ["MetagameEvent", "VehicleDestroy"], worlds: ["Emerald", "Miller"], characters: ["all"]])
+		subscriptions = [
+			events: ["MetagameEvent", "VehicleDestroy"], 
+			worlds: ["Emerald", "Miller"], 
+			characters: ["all"]
+		]
+    PS2.SocketClient.start_link(__MODULE__, subscriptions)
   end
 
   def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
   def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
 
+	# Catch-all callback.
   def handle_event({event, _payload}) do
     IO.puts "Recieved unhandled event: #{event}"
   end
@@ -136,9 +150,8 @@ as the first argument, and a keyword list of subscriptions as the second argumen
 character IDs. See a full list of event names in the
 [Event Streaming docs](https://census.daybreakgames.com/#what-is-websocket).
 
-`SocketClients` also fit well into supervision trees.
+`SocketClient`s also fit well into supervision trees:
 
-### SocketClient Supervision Example
 ```elixir
 defmodule MyApp.Supervisor do
   use Supervisor
@@ -173,7 +186,8 @@ end
 ```
 
 However, if you are not interested in Event Streaming at all, you can set 
-`event_streaming: false` in your config file.
+`event_streaming: false` in your config file to prevent the socket process
+from starting.
 ```elixir
 import Config
 config :planetside_api, service_id: "service_id_here", event_streaming: false

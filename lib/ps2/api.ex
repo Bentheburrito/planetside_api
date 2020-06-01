@@ -2,7 +2,7 @@ defmodule PS2.API do
 	@moduledoc """
 	Your gateway to the Census API.
 
-	Pass `send/1` your query and get `{:ok, result}`, where
+	Pass you queries to `send_query/1` and get `{:ok, result}`, where
 	`result` is a map.
 
 		iex> q = PS2.API.Query.new(collection: "character_name")
