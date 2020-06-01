@@ -1,3 +1,6 @@
 defmodule PS2.API.Query.Error do
-	defexception message: "A problem occured while constructing the query."
+  @moduledoc false
+  defexception message: "A problem occured while constructing the query."
+
+  @type t() :: %__MODULE__{message: String.t()}
 end

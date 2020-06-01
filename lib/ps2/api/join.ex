@@ -1,18 +1,19 @@
 defmodule PS2.API.Join do
-	@moduledoc """
-	A data structure representing a join on an API query. Create a join using %PS2.API.Join{} or the new/0 or new/1 functions.
-	"""
+  @moduledoc """
+  A data structure representing a join on an API query. Create a join using %PS2.API.Join{} or the new/0 or new/1 functions.
+  """
 
-	alias PS2.API.Join
+  alias PS2.API.Join
 
-	defstruct [:collection, terms: %{}, joins: []]
-	@type t() :: %Join{
-		collection: String.t(),
+  defstruct [:collection, terms: %{}, joins: []]
+
+  @type t() :: %Join{
+		collection: String.t() | nil,
 		terms: map(),
 		joins: [t()]
 	}
 
-	@type opts :: [
+  @type opts :: [
 		collection: String.t(),
 		on: String.t(),
 		to: String.t(),
@@ -20,11 +21,15 @@ defmodule PS2.API.Join do
 		show: list(term()),
 		hide: list(term()),
 		inject_at: String.t(),
-		outer: boolean(),
+		outer: boolean()
 	]
 
-	@spec new(opts) :: t()
-	def new, do: %Join{}
-	def new(opts), do:
-		%Join{collection: Keyword.get(opts, :collection), terms: Keyword.delete(opts, :collection) |> Enum.into(%{})}
+  @spec new() :: t()
+  def new, do: %Join{}
+  @spec new(opts) :: t()
+  def new(opts),
+    do: %Join{
+      collection: Keyword.get(opts, :collection),
+      terms: Keyword.delete(opts, :collection) |> Enum.into(%{})
+    }
 end

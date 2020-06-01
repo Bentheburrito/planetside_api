@@ -1,4 +1,5 @@
 defmodule PS2.Socket do
+	@moduledoc false
 	use WebSockex
 
 	require Logger

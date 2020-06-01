@@ -7,24 +7,24 @@ defmodule PS2.API.QueryBuilder do
 		PS2.API.QueryBuilder
 		iex> alias PS2.API.Query
 		PS2.API.Query
-		iex> q = Query.new(collection: "character")
+		iex> query = Query.new(collection: "character")
 		...> |> term("character_id", "5428011263335537297")
 		...> |> show(["character_id", "name.en", "faction_id"])
 		...> |> limit(3)
 		...> |> exact_match_first(true)
 		%PS2.API.Query{
-			collection: "character",
-			joins: [],
-			sort: nil,
-			terms: %{
-				"c:exactMatchFirst" => true,
-				"c:limit" => 3,
-				"c:show" => "character_id,name.en,faction_id",
-				"character_id" => {"", "5428011263335537297"}
-			},
-			tree: nil
+		  collection: "character",
+		  joins: [],
+		  sort: nil,
+		  terms: %{
+		    "c:exactMatchFirst" => true,
+		    "c:limit" => 3,
+		    "c:show" => "character_id,name.en,faction_id",
+		    "character_id" => {"", "5428011263335537297"}
+		  },
+		  tree: nil
 		}
-		iex> PS2.API.encode q
+		iex> PS2.API.encode query
 		{:ok, "character?c:exactMatchFirst=true&c:limit=3&c:show=character_id,name.en,faction_id&character_id=5428011263335537297"}
 
 	You can then send the query to the api using `PS2.API.send_query/1`.
@@ -42,6 +42,7 @@ defmodule PS2.API.QueryBuilder do
 	:contains
 	:not
 	```
+	For example: `term(query_or_join, "name.first_lower", "wrel", :starts_with)`
 
 	## Joining Queries
 	You can use `Join`s to gather data from multiple collections within one query,
@@ -52,51 +53,54 @@ defmodule PS2.API.QueryBuilder do
 	alias PS2.API.{Query, Join}
 
 	online_status_join =
-		%Join{} # Note you could also Join.new(collection: "characters_online_status", show: "online_status" ...)
-		|> collection("characters_online_status")
-		|> show("online_status")
-		|> inject_at("online_status")
+    # Note we could use Join.new(collection: "characters_online_status", show: "online_status" ...)
+	  %Join{}
+	  |> collection("characters_online_status")
+	  |> show("online_status")
+	  |> inject_at("online_status")
 		|> list(true)
-	q =
-		%Query{}
-		|> collection("character")
-		|> join(online_status_join)
+
+	query =
+	  %Query{}
+	  |> collection("character")
+	  |> join(online_status_join)
 	```
 	When the query `q` is sent to the API, the result with have an extra field,
-	"online_status", which contains the result of the `Join` (in this case, the
-	player's online	status.)
+	"online_status", which contains the result of the `Join` (the	player's
+	online	status.)
 
 	You can create as many adjacent `Join`s as you'd like by repeatedly piping
-	a query through `QueryBuilder.join/2`. You can also nest other `Join`s via
-	`QueryBuilder.join/2` as well:
+	a query through `QueryBuilder.join/2`. You can also nest `Join`s via
+	`QueryBuilder.join/2` when you pass a Join as the first argument instead
+	of a Query.
 
 	```elixir
 	import PS2.API.QueryBuilder
 	alias PS2.API.{Query, Join}
 
 	char_achieve_join =
-		Join.new(collection: "characters_achievement", on: "character_id")
+	  Join.new(collection: "characters_achievement", on: "character_id")
 
 	char_name_join =
-		Join.new(collection: "character_name", on: "character_id", inject_at: "c_name")
+	  Join.new(collection: "character_name", on: "character_id", inject_at: "c_name")
 
 	online_status_join =
-		Join.new(collection: "characters_online_status")
-		|> join(char_name_join)
-		|> join(char_achieve_join)
+	  Join.new(collection: "characters_online_status")
+	  |> join(char_name_join)
+	  |> join(char_achieve_join)
 
-	q =
-		%Query{}
-		|> collection("character")
-		|> term("name.first", "Snowful")
-		|> show(["character_id", "faction_id"])
-		|> join(online_status_join)
+	query =
+	  %Query{}
+	  |> collection("character")
+	  |> term("name.first", "Snowful")
+	  |> show(["character_id", "faction_id"])
+	  |> join(online_status_join)
 	```
 
 	## Trees
 	You can organize the returned data by a field within the data, using the
 	`QueryBuilder.tree/2`.
-	world_event?type=METAGAME&c:limit=30&c:lang=en&c:join=metagame_event^inject_at:info&c:tree=field:world_id^list:1
+
 	```elixir
 	import PS2.API.QueryBuilder
 	alias PS2.API.{Query, Tree}
@@ -106,9 +110,9 @@ defmodule PS2.API.QueryBuilder do
 	|> term("type", "METAGAME")
 	|> lang("en")
 	|> tree(
-		%Tree{}
-		|> field("world_id")
-		|> list(true)
+	  %Tree{}
+	  |> field("world_id")
+	  |> list(true)
 	)
 	```
 	"""
@@ -138,11 +142,16 @@ defmodule PS2.API.QueryBuilder do
 
 	alias PS2.API.{Query, Join, Tree}
 
-	@spec collection(Query.t(), collection_name) :: %Query{}
-	def collection(%Query{} = q, collection_name), do:
-		%Query{q | collection: collection_name}
+	@doc """
+	Set the collection of the query/join.
+	"""
+	@spec collection(Query.t(), collection_name) :: Query.t()
+	@spec collection(Join.t(), collection_name) :: Join.t()
+	def collection(query_or_join, collection_name)
 
-	@spec collection(Join.t(), collection_name) :: %Join{}
+	def collection(%Query{} = query, collection_name), do:
+		%Query{query | collection: collection_name}
+
 	def collection(%Join{} = join, collection), do:
 		%Join{join | collection: collection}
 
@@ -153,11 +162,11 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec show(Query.t(), String.t() | list(String.t())) :: Query.t()
 	@spec show(Join.t(), String.t() | list(String.t())) :: Join.t()
-	def show(t, value)
+	def show(query_or_join, value)
 
-	def show(%Query{} = q, values) when is_list(values), do: show(q, Enum.join(values, ","))
-	def show(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:show", value)}
+	def show(%Query{} = query, values) when is_list(values), do: show(query, Enum.join(values, ","))
+	def show(%Query{} = query, value), do:
+		%Query{query | terms: Map.put(query.terms, "c:show", value)}
 
 	def show(%Join{} = join, values) when is_list(values), do: show(join, Enum.join(values, "'"))
 	def show(%Join{} = join, value), do:
@@ -168,47 +177,73 @@ defmodule PS2.API.QueryBuilder do
 	### API Documentation:
 	Include all field except the provided fields from the object within the result.
 	"""
-	@spec hide(Query.t(), String.t() | list(String.t())) :: %Query{}
-	def hide(%Query{} = q, values) when is_list(values), do: hide(q, Enum.join(values, ","))
-	def hide(%Query{} = q, value), do: %Query{q | terms: Map.put(q.terms, "c:hide", value)}
+	@spec hide(Query.t(), String.t() | list(String.t())) :: Query.t()
+	@spec hide(Join.t(), String.t() | list(String.t())) :: Join.t()
+	def hide(query_or_join, values)
 
-	@spec hide(Join.t(), String.t() | list(String.t())) :: %Join{}
+	def hide(%Query{} = query, values) when is_list(values), do: hide(query, Enum.join(values, ","))
+	def hide(%Query{} = query, value), do: %Query{query | terms: Map.put(query.terms, "c:hide", value)}
+
 	def hide(%Join{} = join, values) when is_list(values), do: hide(join, Enum.join(values, "'"))
 	def hide(%Join{} = join, field), do: %Join{join | terms: Map.put(join.terms, :hide, field)}
 
 	@doc """
 	Add a term to filter query results. i.e. filter a query by character ID:  `.../character?character_id=1234123412341234123`
 	"""
-	def term(t, field, value, modifier \\ nil)
 	@spec term(Query.t(), String.t() | atom, any, modifer) :: Query.t()
 	@spec term(Join.t(), String.t() | atom, any, modifer) :: Join.t()
+	def term(query_or_join, field, value, modifier \\ nil)
 
-	def term(%Query{} = q, field, value, modifier), do:
-		%Query{q | terms: Map.put(q.terms, field, {Map.get(@modifier_map, modifier, ""), value})}
+	def term(%Query{} = query, field, value, modifier), do:
+		%Query{query | terms: Map.put(query.terms, field, {Map.get(@modifier_map, modifier, ""), value})}
 
 	def term(%Join{} = join, field, value, modifier), do:
 		%Join{join | terms: Map.put(join.terms, field, {Map.get(@modifier_map, modifier, ""), value})}
+
+	@doc """
+	Adds a join to a query.
+	See the "Using c:join to join collections dynamically"
+	section at https://census.daybreakgames.com/#query-commands to learn more about joining
+	queries.
+	### c:join API Documentation:
+	Meant to replace c:resolve, useful for dynamically joining (resolving)
+	multiple data types in one query.
+	"""
+	@spec join(Query.t(), Join.t()) :: Query.t()
+	@spec join(Join.t(), Join.t()) :: Join.t()
+	def join(query_or_join, join)
+
+	def join(%Query{} = query, %Join{} = join), do:
+		%Query{query | joins: [join | query.joins]}
+
+	def join(%Join{} = join, %Join{} = new_join), do:
+		%Join{join | joins: [new_join | join.joins]}
+
 
 	@doc """
 	Adds a sort term (to a Join or Tree).
 	Specifies whether the result should be a list (true) or a single record (false). Defaults to false.
 	"""
 	@spec list(Join.t(), boolean()) :: %Join{}
-	def list(%Join{} = join, val), do: %Join{join | terms: Map.put(join.terms, :list, PS2.Utils.boolean_to_integer(val))}
-
 	@spec list(Tree.t(), boolean()) :: %Tree{}
-	def list(%Tree{} = tree, val), do: %Tree{tree | terms: Map.put(tree.terms, :list, PS2.Utils.boolean_to_integer(val))}
+	def list(tree_or_join, boolean)
 
-	### Query specific functions
+	def list(%Join{} = join, boolean), do:
+		%Join{join | terms: Map.put(join.terms, :list, PS2.Utils.boolean_to_integer(boolean))}
+
+	def list(%Tree{} = tree, boolean), do:
+		%Tree{tree | terms: Map.put(tree.terms, :list, PS2.Utils.boolean_to_integer(boolean))}
+
+	# ~~Query specific functions~~
 
 	@doc """
 	Adds a c:sort term. Overwrites previous terms of the same name.
 	### API Documentation:
 	Sort the results by the field(s) provided.
 	"""
-	@spec sort(Query.t(), Query.sort_terms()) :: %Query{}
-	def sort(%Query{} = q, %{} = sort_terms), do:
-		%Query{q | sort: sort_terms}
+	@spec sort(Query.t(), Query.sort_terms()) :: Query.t()
+	def sort(%Query{} = query, %{} = sort_terms), do:
+		%Query{query | sort: sort_terms}
 
 	@doc """
 	Adds a c:has term. Overwrites previous terms of the same name.
@@ -216,10 +251,10 @@ defmodule PS2.API.QueryBuilder do
 	Include objects where the specified field exists, regardless
 	of the value within that field.
 	"""
-	@spec has(Query.t(), String.t() | list()) :: %Query{}
-	def has(%Query{} = q, values) when is_list(values), do: has(q, Enum.join(values, ","))
-	def has(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:has", value)}
+	@spec has(Query.t(), String.t() | list()) :: Query.t()
+	def has(%Query{} = query, values) when is_list(values), do: has(query, Enum.join(values, ","))
+	def has(%Query{} = query, value), do:
+		%Query{query | terms: Map.put(query.terms, "c:has", value)}
 
 	@doc """
 	Adds a c:resolve term. Overwrites previous terms of the same name.
@@ -234,9 +269,9 @@ defmodule PS2.API.QueryBuilder do
 	the field to be resolved on. For instance, resolving leader on outfit requires
 	that leader_character_id be in the initial query.
 	"""
-	@spec resolve(Query.t(), String.t()) :: %Query{}
-	def resolve(%Query{} = q, collection), do:
-		%Query{q | terms: Map.put(q.terms, "c:resolve", collection)}
+	@spec resolve(Query.t(), String.t()) :: Query.t()
+	def resolve(%Query{} = query, collection), do:
+		%Query{query | terms: Map.put(query.terms, "c:resolve", collection)}
 
 	@doc """
 	Adds a c:case (sensitivity) term. Overwrites previous terms of the same name.
@@ -246,18 +281,18 @@ defmodule PS2.API.QueryBuilder do
 	down your queries. If a lower case version of a field is available use that
 	instead for faster performance.
 	"""
-	@spec case_sensitive(Query.t(), boolean()) :: %Query{}
-	def case_sensitive(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:case", value)}
+	@spec case_sensitive(Query.t(), boolean()) :: Query.t()
+	def case_sensitive(%Query{} = query, boolean), do:
+		%Query{query | terms: Map.put(query.terms, "c:case", boolean)}
 
 	@doc """
 	Adds a c:limit term. Overwrites previous terms of the same name.
 	### API Documentation:
 	Limit the results to at most N [`value`] objects.
 	"""
-	@spec limit(Query.t(), integer()) :: %Query{}
-	def limit(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:limit", value)}
+	@spec limit(Query.t(), integer()) :: Query.t()
+	def limit(%Query{} = query, value), do:
+		%Query{query | terms: Map.put(query.terms, "c:limit", value)}
 
 	@doc """
 	Adds a c:limitPerDB term. Overwrites previous terms of the same name.
@@ -267,9 +302,9 @@ defmodule PS2.API.QueryBuilder do
 	databases. Using c:limitPerDb will have more predictable results on
 	ps2/character than c:limit will.
 	"""
-	@spec limit_per_db(Query.t(), integer()) :: %Query{}
-	def limit_per_db(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:limitPerDB", value)}
+	@spec limit_per_db(Query.t(), integer()) :: Query.t()
+	def limit_per_db(%Query{} = query, value), do:
+		%Query{query | terms: Map.put(query.terms, "c:limitPerDB", value)}
 
 	@doc """
 	Adds a c:start term. Overwrites previous terms of the same name.
@@ -279,9 +314,9 @@ defmodule PS2.API.QueryBuilder do
 	querying ps2/character which is distributed randomly across
 	20 databases.
 	"""
-	@spec start(Query.t(), integer()) :: %Query{}
-	def start(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:start", value)}
+	@spec start(Query.t(), integer()) :: Query.t()
+	def start(%Query{} = query, value), do:
+		%Query{query | terms: Map.put(query.terms, "c:start", value)}
 
 	@doc """
 	Adds a c:includeNull term. Overwrites previous terms of the same name.
@@ -292,53 +327,36 @@ defmodule PS2.API.QueryBuilder do
 	c:includeNull=true command if you want the value name.fr : `NULL` to be
 	returned in the result.
 	"""
-	@spec include_null(Query.t(), boolean()) :: %Query{}
-	def include_null(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:includeNull", value)}
+	@spec include_null(Query.t(), boolean()) :: Query.t()
+	def include_null(%Query{} = query, boolean), do:
+		%Query{query | terms: Map.put(query.terms, "c:includeNull", boolean)}
 
 	@doc """
 	Adds a c:lang term. Overwrites previous terms of the same name.
 	### API Documentation:
 	For internationalized strings, remove all translations except the one specified.
 	"""
-	@spec lang(Query.t(), String.t()) :: %Query{}
-	def lang(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:lang", value)}
-
-	@doc """
-	Adds a join to a query.
-	See the "Using c:join to join collections dynamically"
-	section at https://census.daybreakgames.com/#query-commands to learn more about joining
-	queries.
-	### c:join API Documentation:
-	Meant to replace c:resolve, useful for dynamically joining (resolving)
-	multiple data types in one query.
-	"""
-	@spec join(Query.t(), Join.t()) :: Query.t()
-	def join(%Query{} = q, %Join{} = join), do:
-		%Query{q | joins: [join | q.joins]}
-
-	@spec join(Join.t(), Join.t()) :: Join.t()
-	def join(%Join{} = join, %Join{} = new_join), do:
-		%Join{join | joins: [new_join | join.joins]}
+	@spec lang(Query.t(), String.t()) :: Query.t()
+	def lang(%Query{} = query, value), do:
+		%Query{query | terms: Map.put(query.terms, "c:lang", value)}
 
 	@doc """
 	Adds a c:tree term
 	### API Documentaion:
 	Useful for rearranging lists of data into trees of data. See below for details.
 	"""
-	@spec tree(Query.t(), Tree.t()) :: %Query{}
-	def tree(%Query{} = q, %Tree{} = tree), do:
-	%Query{q | tree: tree}
+	@spec tree(Query.t(), Tree.t()) :: Query.t()
+	def tree(%Query{} = query, %Tree{} = tree), do:
+	%Query{query | tree: tree}
 
 	@doc """
 	Adds a c:timing term. Overwrites previous terms of the same name.
 	### API Documentation:
 	Shows the time taken by the involved server-side queries and resolves.
 	"""
-	@spec timing(Query.t(), boolean()) :: %Query{}
-	def timing(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:timing", value)}
+	@spec timing(Query.t(), boolean()) :: Query.t()
+	def timing(%Query{} = query, boolean), do:
+		%Query{query | terms: Map.put(query.terms, "c:timing", boolean)}
 
 	@doc """
 	Adds a c:exactMatchFirst term. Overwrites previous terms of the same name.
@@ -347,9 +365,9 @@ defmodule PS2.API.QueryBuilder do
 	exact matches of the regex value to appear at the top of the result list
 	despite the value of c:sort.
 	"""
-	@spec exact_match_first(Query.t(), boolean()) :: %Query{}
-	def exact_match_first(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:exactMatchFirst", value)}
+	@spec exact_match_first(Query.t(), boolean()) :: Query.t()
+	def exact_match_first(%Query{} = query, boolean), do:
+		%Query{query | terms: Map.put(query.terms, "c:exactMatchFirst", boolean)}
 
 	@doc """
 	Adds a c:distinct term. Overwrites previous terms of the same name.
@@ -359,9 +377,9 @@ defmodule PS2.API.QueryBuilder do
 	`http://census.daybreakgames.com/get/ps2/item?c:distinct=max_stack_size`.
 	Results are capped at 20,000 values.
 	"""
-	@spec distinct(Query.t(), boolean()) :: %Query{}
-	def distinct(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:distinct", value)}
+	@spec distinct(Query.t(), boolean()) :: Query.t()
+	def distinct(%Query{} = query, boolean), do:
+		%Query{query | terms: Map.put(query.terms, "c:distinct", boolean)}
 
 	@doc """
 	Adds a c:retry term. Overwrites previous terms of the same name.
@@ -369,11 +387,11 @@ defmodule PS2.API.QueryBuilder do
 	If `true`, query will be retried one time. Default value is true.
 	If you prefer your query to fail quickly pass c:retry=false.
 	"""
-	@spec retry(Query.t(), boolean()) :: %Query{}
-	def retry(%Query{} = q, value), do:
-		%Query{q | terms: Map.put(q.terms, "c:retry", value)}
+	@spec retry(Query.t(), boolean()) :: Query.t()
+	def retry(%Query{} = query, boolean), do:
+		%Query{query | terms: Map.put(query.terms, "c:retry", boolean)}
 
-	### Join specific functions
+	# ~~Join specific functions~~
 
 	@doc """
 	Adds an `on:` term. `field` is the field on the parent/leading collection to compare with the join's field
@@ -412,10 +430,10 @@ defmodule PS2.API.QueryBuilder do
 	Defaults to 1- do an outer join, include non-matches.
 	"""
 	@spec outer(Join.t(), boolean()) :: %Join{}
-	def outer(%Join{} = join, val), do:
-		%Join{join | terms: Map.put(join.terms, :outer, val)}
+	def outer(%Join{} = join, boolean), do:
+		%Join{join | terms: Map.put(join.terms, :outer, PS2.Utils.boolean_to_integer(boolean))}
 
-	### Tree specific functions
+	# ~~Tree specific functions~~
 
 	@doc """
 	Adds a `start:` term.
@@ -426,7 +444,7 @@ defmodule PS2.API.QueryBuilder do
 	def start_field(%Tree{} = tree, field), do: %Tree{tree | terms: Map.put(tree.terms, :start, field)}
 
 	@doc """
-	Add a `field:` term.
+	Adds a `field:` term.
 	### API Documentation:
 	The field to remove and use as in the data structure, or tree.
 	"""

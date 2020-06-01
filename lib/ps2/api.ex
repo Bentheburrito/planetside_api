@@ -1,25 +1,44 @@
 defmodule PS2.API do
 	@moduledoc """
-	A module for interacting with the census API.
+	Your gateway to the Census API.
+
+	Pass `send/1` your query and get `{:ok, result}`, where
+	`result` is a map.
+
+		iex> q = PS2.API.Query.new(collection: "character_name")
+		%PS2.API.Query{
+		  collection: "character_name",
+		  joins: [],
+		  sort: nil,
+		  terms: %{},
+		  tree: nil
+		}
+		iex> PS2.API.send_query(q)
+		{:ok,
+		  %{
+		    character_name_list: [
+		      %{
+		        character_id: "5428407427900254785",
+		        name: %{first: "B3ASTSALVA23", first_lower: "b3astsalva23"}
+		      }
+		    ],
+	      returned: 1
+      }}
 	"""
 
-	use HTTPoison.Base
 	alias PS2.API.{Query, Join, Tree}
 
-	@type result :: %{
-		payload: %{},
-		returned: integer
-	}
+	@type result :: %{}
 
-	def process_url(query) do
+	defp get(query) do
 		sid = Application.fetch_env!(:planetside_api, :service_id)
-		"https://census.daybreakgames.com/s:#{sid}/get/ps2:v2/#{query}"
+		HTTPoison.get("https://census.daybreakgames.com/s:#{sid}/get/ps2:v2/#{query}")
 	end
 
 	@doc """
 	Sends `query` to the API, encoding it if necessary. Returns `{:ok, result}` if successful, where `result` is a map.
 	"""
-	@spec send_query(Query.t() | url()) :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
+	@spec send_query(Query.t() | String.t()) :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
 	def send_query(query) when is_bitstring(query) do
 
 		with {:ok, res} <- get(query),
@@ -31,6 +50,10 @@ defmodule PS2.API do
 		do: send_query(encoded)
 	end
 
+	@doc """
+	View a list of all the public API collections and their resolves.
+	"""
+	@spec get_collections() :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
 	def get_collections do
 		with {:ok, res} <- get(""),
 		{:ok, %{:error => m}} <- Jason.decode(res.body, keys: :atoms), do:
@@ -38,9 +61,9 @@ defmodule PS2.API do
 	end
 
 	@doc """
-	Encodes a Query struct into an API-ready url.
+	Encodes a Query struct into an API-ready string.
 	"""
-	@spec encode(%Query{}) :: {:ok, String.t()} | {:error, %Query.Error{}}
+	@spec encode(Query.t()) :: {:ok, String.t()} | {:error, Query.Error.t()}
 	def encode(%Query{collection: nil} = _q), do: {:error, %Query.Error{message: "Collection field must be specified to be a valid query."}}
 	def encode(%Query{} = q) do
 		{:ok,

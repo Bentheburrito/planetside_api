@@ -35,42 +35,42 @@ alias PS2.API.{Query, Join, Tree}
 import PS2.API.QueryBuilder
 
 q =
-	%Query{}
-	|> collection("character")
-	|> term("name.first_lower", "wrel", :starts_with)
-	|> limit(12)
-	|> lang("en")
-	|> join(
-		%Join{}
-		|> collection("characters_online_status")
-		|> inject_at("online")
-	)
-	|> tree(
-		%Tree{}
-		|> field("online.online_status")
-		|> list(true)
-	)
+  %Query{}
+  |> collection("character")
+  |> term("name.first_lower", "wrel", :starts_with)
+  |> limit(12)
+  |> lang("en")
+  |> join(
+    %Join{}
+    |> collection("characters_online_status")
+    |> inject_at("online")
+  )
+  |> tree(
+    %Tree{}
+    |> field("online.online_status")
+    |> list(true)
+  )
 
 # For large queries with many joins, you may want to split these further into separate parts:
 
 online_status_join = 
-	%Join{}
-	|> collection("characters_online_status")
-	|> inject_at("online")
+  %Join{}
+  |> collection("characters_online_status")
+  |> inject_at("online")
 
 online_status_tree =
-	%Tree{}
-	|> field("online.online_status")
-	|> list(true)
+  %Tree{}
+  |> field("online.online_status")
+  |> list(true)
 
 q =
-	%Query{}
-	|> collection("character")
-	|> term("name.first_lower", "wrel", :starts_with)
-	|> limit(12)
-	|> lang("en")
-	|> join(online_status_join)
-	|> tree(online_status_tree)
+  %Query{}
+  |> collection("character")
+  |> term("name.first_lower", "wrel", :starts_with)
+  |> limit(12)
+  |> lang("en")
+  |> join(online_status_join)
+  |> tree(online_status_tree)
 ```
 
 Queries are sent to the API with `PS2.API.send_query/1`,
@@ -90,13 +90,13 @@ Query.new(collection: "character")
 |> show(["character_id", "faction_id"])
 |> lang("en")
 |> join(
-	Join.new(collection: "characters_online_status", on: "character_id", inject_at: "online")
+  Join.new(collection: "characters_online_status", on: "character_id", inject_at: "online")
 )
 |> join(
-	Join.new(collection: "characters_weapon_stat")
-	|> join(
-		Join.new(collection: "item")
-	)
+  Join.new(collection: "characters_weapon_stat")
+  |> join(
+    Join.new(collection: "item")
+  )
 )
 ```
 See the [API docs](https://census.daybreakgames.com/#query-commands)
@@ -115,18 +115,18 @@ and distributes parsed payloads through `PS2.SocketClient`s.
 ### Example SocketClient Implementation
 ```elixir
 defmodule MyApp.EventStream do
-	use PS2.SocketClient
+  use PS2.SocketClient
 
-	def start_link do
-		PS2.SocketClient.start_link(__MODULE__, [events: ["MetagameEvent", "VehicleDestroy"], worlds: ["Emerald", "Miller"], characters: ["all"]])
-	end
+  def start_link do
+    PS2.SocketClient.start_link(__MODULE__, [events: ["MetagameEvent", "VehicleDestroy"], worlds: ["Emerald", "Miller"], characters: ["all"]])
+  end
 
-	def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
-	def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
+  def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
+  def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
 
-	def handle_event({event, _payload}) do
-		IO.puts "Recieved unhandled event: #{event}"
-	end
+  def handle_event({event, _payload}) do
+    IO.puts "Recieved unhandled event: #{event}"
+  end
 end
 ```
 `PS2.SocketClient.start_link/2` expects a module that implements `PS2.SocketClient`
@@ -141,34 +141,34 @@ character IDs. See a full list of event names in the
 ### SocketClient Supervision Example
 ```elixir
 defmodule MyApp.Supervisor do
-	use Supervisor
+  use Supervisor
 
-	def start_link(opts) do
-		Supervisor.start_link(__MODULE__, :ok, opts)
-	end
+  def start_link(opts) do
+    Supervisor.start_link(__MODULE__, :ok, opts)
+  end
 
-	def init(:ok) do
-		children = [
-			{MyApp.EventStream, [events: ["MetagameEvent", "VehicleDestroy"], worlds: ["Emerald", "Miller"], characters: ["all"]]},
-		]
+  def init(:ok) do
+    children = [
+      {MyApp.EventStream, [events: ["MetagameEvent", "VehicleDestroy"], worlds: ["Emerald", "Miller"], characters: ["all"]]},
+    ]
 
-		Supervisor.init(children, strategy: :one_for_one)
-	end
+    Supervisor.init(children, strategy: :one_for_one)
+  end
 end
 
 defmodule MyApp.EventStream do
-	use PS2.SocketClient
+  use PS2.SocketClient
 
-	def start_link(subscriptions) do
-		PS2.SocketClient.start_link(__MODULE__, subscriptions)
-	end
+  def start_link(subscriptions) do
+    PS2.SocketClient.start_link(__MODULE__, subscriptions)
+  end
 
-	def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
-	def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
+  def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
+  def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
 
-	def handle_event({event, _payload}) do
-		IO.puts "Recieved unhandled event: #{event}"
-	end
+  def handle_event({event, _payload}) do
+    IO.puts "Recieved unhandled event: #{event}"
+  end
 end
 ```
 
