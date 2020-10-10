@@ -60,11 +60,17 @@ defmodule PS2.API do
 		{:error, %PS2.API.Error{message: m}}
 	end
 
+	@doc """
+	Gets the image link
+	"""
 	@spec get_image_url(String.t()) :: String.t()
 	def get_image_url(image_path) do
 		"https://census.daybreakgames.com#{image_path}"
 	end
 
+	@doc """
+	Gets the image binary for a .png.
+	"""
 	@spec get_image(String.t()) :: {:ok, binary()} | {:error, HTTPoison.Error.t()}
 	def get_image(image_path) do
 		with {:ok, res} <- HTTPoison.get("https://census.daybreakgames.com#{image_path}"), do: {:ok, res.body}
