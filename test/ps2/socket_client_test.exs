@@ -23,10 +23,10 @@ defmodule PS2.SocketClientTest do
 
       send(
         client,
-        {:GAME_EVENT, {"VehicleDestroy", %{:character_id => "1", "test_pid" => self()}}}
+        {:GAME_EVENT, {"VehicleDestroy", %{"character_id" => "1", "test_pid" => self()}}}
       )
 
-      send(client, {:GAME_EVENT, {"PlayerLogin", %{:character_id => "1", "test_pid" => self()}}})
+      send(client, {:GAME_EVENT, {"PlayerLogin", %{"character_id" => "1", "test_pid" => self()}}})
 
       assert_receive {:vehicle_destroy, "1"}
       assert_receive {:unhandled_event, "1"}
@@ -47,9 +47,9 @@ defmodule PS2.TestClient do
 
   @impl PS2.SocketClient
   def handle_event({"VehicleDestroy", payload}),
-    do: if(payload[:character_id] === "1", do: send(payload["test_pid"], {:vehicle_destroy, "1"}))
+    do: if(payload["character_id"] === "1", do: send(payload["test_pid"], {:vehicle_destroy, "1"}))
 
   @impl PS2.SocketClient
   def handle_event({_event, payload}),
-    do: if(payload[:character_id] === "1", do: send(payload["test_pid"], {:unhandled_event, "1"}))
+    do: if(payload["character_id"] === "1", do: send(payload["test_pid"], {:unhandled_event, "1"}))
 end

@@ -17,7 +17,7 @@ defmodule PS2.API.QueryBuilderTest do
 					collection: "character",
 					joins: [],
 					sort: nil,
-					terms: %{
+					params: %{
 						"c:show" => "character_id,name",
 						"character_id" => {"", "5428713425545165425"}
 					},
@@ -25,7 +25,7 @@ defmodule PS2.API.QueryBuilderTest do
 				}
     end
 
-    test "functions can overwrite terms" do
+    test "functions can overwrite params" do
       q = Query.new(collection: "col_1") |> collection("col_2")
       assert q.collection === "col_2"
 
@@ -36,10 +36,10 @@ defmodule PS2.API.QueryBuilderTest do
         |> term("field_1", "val2", :less_than)
 
       assert q.collection === "col_3"
-      assert Map.get(q.terms, "field_1") === {"<", "val2"}
+      assert Map.get(q.params, "field_1") === {"<", "val2"}
     end
 
-    test "can create a join struct with terms" do
+    test "can create a join struct with params" do
       join =
         Join.new(collection: "characters_online_status", on: "character_id")
         |> show(["character_id", "name"])
@@ -49,10 +49,10 @@ defmodule PS2.API.QueryBuilderTest do
 				%PS2.API.Join{
 					collection: "characters_online_status",
 					joins: [],
-					terms: %{
-						:on => "character_id",
-						:show => "character_id'name",
-						"character_id" => {"", "5428713425545165425"}
+					params: %{
+						"on" => "character_id",
+						"show" => "character_id'name",
+						terms: %{"character_id" => {"", "5428713425545165425"}}
 					}
 				}
     end
@@ -93,15 +93,15 @@ defmodule PS2.API.QueryBuilderTest do
 						%PS2.API.Join{
 							collection: "test_col_join",
 							joins: [],
-							terms: %{
-								hide: "some_other_field'another_field",
-								inject_at: "name",
-								show: "some_field"
+							params: %{
+								"hide" => "some_other_field'another_field",
+								"inject_at" => "name",
+								"show" => "some_field"
 							}
 						}
 					],
 					sort: %{"key" => "1"},
-					terms: %{"c:lang" => "en", "c:limit" => 12},
+					params: %{"c:lang" => "en", "c:limit" => 12},
 					tree: %PS2.API.Tree{terms: %{field: "some_field", list: 1}}
 				}
     end
@@ -130,7 +130,7 @@ defmodule PS2.API.QueryBuilderTest do
 					%PS2.API.Join{
 						collection: "characters_stat_by_faction",
 						joins: [],
-						terms: %{}
+						params: %{}
 					},
 					%PS2.API.Join{
 						collection: "characters_online_status",
@@ -138,19 +138,19 @@ defmodule PS2.API.QueryBuilderTest do
 							%PS2.API.Join{
 								collection: "characters_achievement",
 								joins: [],
-								terms: %{on: "character_id", to: "character_id"}
+								params: %{"on" => "character_id", "to" => "character_id"}
 							},
 							%PS2.API.Join{
 								collection: "character_name",
 								joins: [],
-								terms: %{inject_at: "c_name", on: "character_id", to: "character_id"}
+								params: %{"inject_at" => "c_name", "on" => "character_id", "to" => "character_id"}
 							}
 						],
-						terms: %{}
+						params: %{}
 					}
 				],
 				sort: nil,
-				terms: %{
+				params: %{
 					"c:show" => "character_id,faction_id",
 					"name.first" => {"", "Snowful"}
 				},
@@ -175,18 +175,74 @@ defmodule PS2.API.QueryBuilderTest do
 						%PS2.API.Join{
 							collection: "characters_online_status",
 							joins: [],
-							terms: %{list: 1, on: "character_id"}
+							params: %{"list" => 1, "on" => "character_id"}
 						},
 						%PS2.API.Join{
 							collection: "character",
-							joins: [%PS2.API.Join{collection: "faction", joins: [], terms: %{}}],
-							terms: %{}
+							joins: [%PS2.API.Join{collection: "faction", joins: [], params: %{}}],
+							params: %{}
 						}
 					],
 					sort: nil,
-					terms: %{},
+					params: %{},
 					tree: nil
 				}
+
+				q3 = Query.new(collection: "character")
+					|> term("character_id", "5428713425545165425")
+					|> show(["character_id", "faction_id", "name"])
+					|> join(Join.new(collection: "characters_weapon_stat")
+						|> list(true)
+						|> inject_at("weapon_shot_stats")
+						|> show(["stat_name", "item_id", "vehicle_id", "value"])
+						|> term("stat_name", "weapon_hit_count") |> term("stat_name", "weapon_fire_count") |> term("vehicle_id", "0") |> term("item_id", "0", :not)
+						|> join(Join.new(collection: "item")
+							|> inject_at("weapon")
+							|> outer(false)
+							|> show(["name.en", "item_category_id"])
+							|> term("item_category_id", ["3", "5", "6", "7", "8", "12", "19", "24", "100", "102"])
+						)
+					)
+				assert q3 ===
+					%PS2.API.Query{
+						collection: "character",
+						joins: [
+							%PS2.API.Join{
+								collection: "characters_weapon_stat",
+								joins: [
+									%PS2.API.Join{
+										collection: "item",
+										joins: [],
+										params: %{
+											:terms => %{
+												"item_category_id" => {"",
+												 ["3", "5", "6", "7", "8", "12", "19", "24", "100", "102"]}
+											},
+											"inject_at" => "weapon",
+											"outer" => 0,
+											"show" => "name.en'item_category_id"
+										}
+									}
+								],
+								params: %{
+									:terms => %{
+										"item_id" => {"!", "0"},
+										"stat_name" => {"", "weapon_fire_count"},
+										"vehicle_id" => {"", "0"}
+									},
+									"inject_at" => "weapon_shot_stats",
+									"list" => 1,
+									"show" => "stat_name'item_id'vehicle_id'value"
+								}
+							}
+						],
+						params: %{
+							"c:show" => "character_id,faction_id,name",
+							"character_id" => {"", "5428713425545165425"}
+						},
+						sort: nil,
+						tree: nil
+					}
     end
   end
 end

@@ -26,11 +26,10 @@ defmodule PS2.APITest do
       |> sort(%{"key" => "1"})
 
     assert PS2.API.encode(q) ==
-             {:ok,
-              "test_col?c:lang=en&c:limit=12&c:join=test_col_join^hide:some_other_field'another_field^inject_at:name^show:some_field&c:tree=field:some_field^list:1&c:sort=key:1"}
+			{:ok,
+			"test_col?c:lang=en&c:limit=12&c:join=test_col_join^hide:some_other_field'another_field^inject_at:name^show:some_field&c:tree=field:some_field^list:1&c:sort=key:1"}
 
-    assert to_string(q) ==
-             "test_col?c:lang=en&c:limit=12&c:join=test_col_join^hide:some_other_field'another_field^inject_at:name^show:some_field&c:tree=field:some_field^list:1&c:sort=key:1"
+    assert to_string(q) == "test_col?c:lang=en&c:limit=12&c:join=test_col_join^hide:some_other_field'another_field^inject_at:name^show:some_field&c:tree=field:some_field^list:1&c:sort=key:1"
   end
 
   describe "API" do
@@ -42,17 +41,17 @@ defmodule PS2.APITest do
         |> show("character_id")
 
       assert PS2.API.send_query(q) ===
-               {:ok,
-                %{
-                  :returned => 1,
-                  :character_name_list => [%{:character_id => "5428713425545165425"}]
-                }}
+				{:ok,
+				%{
+					"returned" => 1,
+					"character_name_list" => [%{"character_id" => "5428713425545165425"}]
+				}}
     end
 
     test "can retrieve collection list" do
       {:ok, res} = PS2.API.get_collections()
-      assert res[:returned] === 111
-      assert Map.has_key?(res, :datatype_list)
+      assert res["returned"] === 111
+      assert Map.has_key?(res, "datatype_list")
     end
 
     test "query with bad collection returns a PS2.API.Error with message \"No data found.\"" do

@@ -16,7 +16,7 @@ defmodule PS2.API.QueryBuilder do
 		  collection: "character",
 		  joins: [],
 		  sort: nil,
-		  terms: %{
+		  params: %{
 		    "c:exactMatchFirst" => true,
 		    "c:limit" => 3,
 		    "c:show" => "character_id,name.en,faction_id",
@@ -156,7 +156,7 @@ defmodule PS2.API.QueryBuilder do
 		%Join{join | collection: collection}
 
 	@doc """
-	Adds a c:show term. Overwrites previous terms of the same name.
+	Adds a c:show term. Overwrites previous params of the same name.
 	### API Documentation:
 	Only include the provided fields from the object within the result.
 	"""
@@ -166,14 +166,14 @@ defmodule PS2.API.QueryBuilder do
 
 	def show(%Query{} = query, values) when is_list(values), do: show(query, Enum.join(values, ","))
 	def show(%Query{} = query, value), do:
-		%Query{query | terms: Map.put(query.terms, "c:show", value)}
+		%Query{query | params: Map.put(query.params, "c:show", value)}
 
 	def show(%Join{} = join, values) when is_list(values), do: show(join, Enum.join(values, "'"))
 	def show(%Join{} = join, value), do:
-		%Join{join | terms: Map.put(join.terms, :show, value)}
+		%Join{join | params: Map.put(join.params, "show", value)}
 
 	@doc """
-	Adds a c:hide term. Overwrites previous terms of the same name.
+	Adds a c:hide term. Overwrites previous params of the same name.
 	### API Documentation:
 	Include all field except the provided fields from the object within the result.
 	"""
@@ -182,10 +182,10 @@ defmodule PS2.API.QueryBuilder do
 	def hide(query_or_join, values)
 
 	def hide(%Query{} = query, values) when is_list(values), do: hide(query, Enum.join(values, ","))
-	def hide(%Query{} = query, value), do: %Query{query | terms: Map.put(query.terms, "c:hide", value)}
+	def hide(%Query{} = query, value), do: %Query{query | params: Map.put(query.params, "c:hide", value)}
 
 	def hide(%Join{} = join, values) when is_list(values), do: hide(join, Enum.join(values, "'"))
-	def hide(%Join{} = join, field), do: %Join{join | terms: Map.put(join.terms, :hide, field)}
+	def hide(%Join{} = join, field), do: %Join{join | params: Map.put(join.params, "hide", field)}
 
 	@doc """
 	Add a term to filter query results. i.e. filter a query by character ID:  `.../character?character_id=1234123412341234123`
@@ -195,10 +195,12 @@ defmodule PS2.API.QueryBuilder do
 	def term(query_or_join, field, value, modifier \\ nil)
 
 	def term(%Query{} = query, field, value, modifier), do:
-		%Query{query | terms: Map.put(query.terms, field, {Map.get(@modifier_map, modifier, ""), value})}
+		%Query{query | params: Map.put(query.params, field, {Map.get(@modifier_map, modifier, ""), value})}
 
-	def term(%Join{} = join, field, value, modifier), do:
-		%Join{join | terms: Map.put(join.terms, field, {Map.get(@modifier_map, modifier, ""), value})}
+	def term(%Join{} = join, field, value, modifier) do
+		term_value = {Map.get(@modifier_map, modifier, ""), value}
+		%Join{join | params: Map.update(join.params, :terms, %{field => term_value}, &Map.put(&1, field, term_value))}
+	end
 
 	@doc """
 	Adds a join to a query.
@@ -229,7 +231,7 @@ defmodule PS2.API.QueryBuilder do
 	def list(tree_or_join, boolean)
 
 	def list(%Join{} = join, boolean), do:
-		%Join{join | terms: Map.put(join.terms, :list, PS2.Utils.boolean_to_integer(boolean))}
+		%Join{join | params: Map.put(join.params, "list", PS2.Utils.boolean_to_integer(boolean))}
 
 	def list(%Tree{} = tree, boolean), do:
 		%Tree{tree | terms: Map.put(tree.terms, :list, PS2.Utils.boolean_to_integer(boolean))}
@@ -237,7 +239,7 @@ defmodule PS2.API.QueryBuilder do
 	# ~~Query specific functions~~
 
 	@doc """
-	Adds a c:sort term. Overwrites previous terms of the same name.
+	Adds a c:sort term. Overwrites previous params of the same name.
 	### API Documentation:
 	Sort the results by the field(s) provided.
 	"""
@@ -246,7 +248,7 @@ defmodule PS2.API.QueryBuilder do
 		%Query{query | sort: sort_terms}
 
 	@doc """
-	Adds a c:has term. Overwrites previous terms of the same name.
+	Adds a c:has term. Overwrites previous params of the same name.
 	### API Documentation:
 	Include objects where the specified field exists, regardless
 	of the value within that field.
@@ -254,10 +256,10 @@ defmodule PS2.API.QueryBuilder do
 	@spec has(Query.t(), String.t() | list()) :: Query.t()
 	def has(%Query{} = query, values) when is_list(values), do: has(query, Enum.join(values, ","))
 	def has(%Query{} = query, value), do:
-		%Query{query | terms: Map.put(query.terms, "c:has", value)}
+		%Query{query | params: Map.put(query.params, "c:has", value)}
 
 	@doc """
-	Adds a c:resolve term. Overwrites previous terms of the same name.
+	Adds a c:resolve term. Overwrites previous params of the same name.
 	**Note** that `join/3` is recommended over `resolve/2`, as resolve relies
 	on supported collections to work.
 
@@ -271,10 +273,10 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec resolve(Query.t(), String.t()) :: Query.t()
 	def resolve(%Query{} = query, collection), do:
-		%Query{query | terms: Map.put(query.terms, "c:resolve", collection)}
+		%Query{query | params: Map.put(query.params, "c:resolve", collection)}
 
 	@doc """
-	Adds a c:case (sensitivity) term. Overwrites previous terms of the same name.
+	Adds a c:case (sensitivity) term. Overwrites previous params of the same name.
 	### API Documentation:
 	Set whether a search should be case-sensitive, `true` means
 	case-sensitive. true is the default. Note that using this command may slow
@@ -283,19 +285,19 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec case_sensitive(Query.t(), boolean()) :: Query.t()
 	def case_sensitive(%Query{} = query, boolean), do:
-		%Query{query | terms: Map.put(query.terms, "c:case", boolean)}
+		%Query{query | params: Map.put(query.params, "c:case", boolean)}
 
 	@doc """
-	Adds a c:limit term. Overwrites previous terms of the same name.
+	Adds a c:limit term. Overwrites previous params of the same name.
 	### API Documentation:
 	Limit the results to at most N [`value`] objects.
 	"""
 	@spec limit(Query.t(), integer()) :: Query.t()
 	def limit(%Query{} = query, value), do:
-		%Query{query | terms: Map.put(query.terms, "c:limit", value)}
+		%Query{query | params: Map.put(query.params, "c:limit", value)}
 
 	@doc """
-	Adds a c:limitPerDB term. Overwrites previous terms of the same name.
+	Adds a c:limitPerDB term. Overwrites previous params of the same name.
 	### API Documentation:
 	Limit the results to at most (N * number of databases) objects.\n
 	*The data type ps2/character is distributed randomly across 20
@@ -304,10 +306,10 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec limit_per_db(Query.t(), integer()) :: Query.t()
 	def limit_per_db(%Query{} = query, value), do:
-		%Query{query | terms: Map.put(query.terms, "c:limitPerDB", value)}
+		%Query{query | params: Map.put(query.params, "c:limitPerDB", value)}
 
 	@doc """
-	Adds a c:start term. Overwrites previous terms of the same name.
+	Adds a c:start term. Overwrites previous params of the same name.
 	### API Documentation:
 	Start with the Nth object within the results of the query.\n
 	*Please note that c:start will have unusual behavior when
@@ -316,10 +318,10 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec start(Query.t(), integer()) :: Query.t()
 	def start(%Query{} = query, value), do:
-		%Query{query | terms: Map.put(query.terms, "c:start", value)}
+		%Query{query | params: Map.put(query.params, "c:start", value)}
 
 	@doc """
-	Adds a c:includeNull term. Overwrites previous terms of the same name.
+	Adds a c:includeNull term. Overwrites previous params of the same name.
 	### API Documentation:
 	Include `NULL` values in the result. By default this is false. For
 	example, if the `name.fr` field of a vehicle is `NULL` the field `name.fr`
@@ -329,16 +331,16 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec include_null(Query.t(), boolean()) :: Query.t()
 	def include_null(%Query{} = query, boolean), do:
-		%Query{query | terms: Map.put(query.terms, "c:includeNull", boolean)}
+		%Query{query | params: Map.put(query.params, "c:includeNull", boolean)}
 
 	@doc """
-	Adds a c:lang term. Overwrites previous terms of the same name.
+	Adds a c:lang term. Overwrites previous params of the same name.
 	### API Documentation:
 	For internationalized strings, remove all translations except the one specified.
 	"""
 	@spec lang(Query.t(), String.t()) :: Query.t()
 	def lang(%Query{} = query, value), do:
-		%Query{query | terms: Map.put(query.terms, "c:lang", value)}
+		%Query{query | params: Map.put(query.params, "c:lang", value)}
 
 	@doc """
 	Adds a c:tree term
@@ -347,19 +349,19 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec tree(Query.t(), Tree.t()) :: Query.t()
 	def tree(%Query{} = query, %Tree{} = tree), do:
-	%Query{query | tree: tree}
+		%Query{query | tree: tree}
 
 	@doc """
-	Adds a c:timing term. Overwrites previous terms of the same name.
+	Adds a c:timing term. Overwrites previous params of the same name.
 	### API Documentation:
 	Shows the time taken by the involved server-side queries and resolves.
 	"""
 	@spec timing(Query.t(), boolean()) :: Query.t()
 	def timing(%Query{} = query, boolean), do:
-		%Query{query | terms: Map.put(query.terms, "c:timing", boolean)}
+		%Query{query | params: Map.put(query.params, "c:timing", boolean)}
 
 	@doc """
-	Adds a c:exactMatchFirst term. Overwrites previous terms of the same name.
+	Adds a c:exactMatchFirst term. Overwrites previous params of the same name.
 	### API Documentation:
 	When using a regex search (=^ or =*) c:exactMatchFirst=true will cause
 	exact matches of the regex value to appear at the top of the result list
@@ -367,10 +369,10 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec exact_match_first(Query.t(), boolean()) :: Query.t()
 	def exact_match_first(%Query{} = query, boolean), do:
-		%Query{query | terms: Map.put(query.terms, "c:exactMatchFirst", boolean)}
+		%Query{query | params: Map.put(query.params, "c:exactMatchFirst", boolean)}
 
 	@doc """
-	Adds a c:distinct term. Overwrites previous terms of the same name.
+	Adds a c:distinct term. Overwrites previous params of the same name.
 	### API Documentation:
 	Get the distinct values of the given field. For example to get the
 	distinct values of ps2.item.max_stack_size use
@@ -379,17 +381,17 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec distinct(Query.t(), boolean()) :: Query.t()
 	def distinct(%Query{} = query, boolean), do:
-		%Query{query | terms: Map.put(query.terms, "c:distinct", boolean)}
+		%Query{query | params: Map.put(query.params, "c:distinct", boolean)}
 
 	@doc """
-	Adds a c:retry term. Overwrites previous terms of the same name.
+	Adds a c:retry term. Overwrites previous params of the same name.
 	### API Documentation:
 	If `true`, query will be retried one time. Default value is true.
 	If you prefer your query to fail quickly pass c:retry=false.
 	"""
 	@spec retry(Query.t(), boolean()) :: Query.t()
 	def retry(%Query{} = query, boolean), do:
-		%Query{query | terms: Map.put(query.terms, "c:retry", boolean)}
+		%Query{query | params: Map.put(query.params, "c:retry", boolean)}
 
 	# ~~Join specific functions~~
 
@@ -401,7 +403,7 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec on(Join.t(), field_name) :: %Join{}
 	def on(%Join{} = join, field), do:
-		%Join{join | terms: Map.put(join.terms, :on, field)}
+		%Join{join | params: Map.put(join.params, "on", field)}
 
 	@doc """
 	Adds a `to:` term. `field` is the field on the joined collection to compare with the parent/leading field
@@ -412,7 +414,7 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec to(Join.t(), field_name) :: %Join{}
 	def to(%Join{} = join, field), do:
-		%Join{join | terms: Map.put(join.terms, :to, field)}
+		%Join{join | params: Map.put(join.params, "to", field)}
 
 	@doc """
 	Adds an `injected_at:` term. `field` is the name of the new field where the result of the join is inserted.
@@ -421,7 +423,7 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec inject_at(Join.t(), field_name) :: %Join{}
 	def inject_at(%Join{} = join, field), do:
-		%Join{join | terms: Map.put(join.terms, :inject_at, field)}
+		%Join{join | params: Map.put(join.params, "inject_at", field)}
 
 	@doc """
 	Adds an `outer:` term. Note: where the API docs specify `1`, `true` should be passed, and `false` in place of `0`.
@@ -431,7 +433,7 @@ defmodule PS2.API.QueryBuilder do
 	"""
 	@spec outer(Join.t(), boolean()) :: %Join{}
 	def outer(%Join{} = join, boolean), do:
-		%Join{join | terms: Map.put(join.terms, :outer, PS2.Utils.boolean_to_integer(boolean))}
+		%Join{join | params: Map.put(join.params, "outer", PS2.Utils.boolean_to_integer(boolean))}
 
 	# ~~Tree specific functions~~
 

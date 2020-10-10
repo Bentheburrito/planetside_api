@@ -10,25 +10,25 @@ defmodule PS2.API do
 		  collection: "character_name",
 		  joins: [],
 		  sort: nil,
-		  terms: %{},
+		  params: %{},
 		  tree: nil
 		}
 		iex> PS2.API.send_query(q)
 		{:ok,
 		  %{
-		    character_name_list: [
+		    "character_name_list" => [
 		      %{
-		        character_id: "5428407427900254785",
-		        name: %{first: "B3ASTSALVA23", first_lower: "b3astsalva23"}
+		        "character_id" => "1",
+		        "name" => %{"first" => "test character", "first_lower" => "test character"}
 		      }
 		    ],
-	      returned: 1
+	      "returned" => 1
       }}
 	"""
 
 	alias PS2.API.{Query, Join, Tree}
 
-	@type result :: %{}
+	@type result :: map()
 
 	defp get(query) do
 		sid = Application.fetch_env!(:planetside_api, :service_id)
@@ -42,7 +42,7 @@ defmodule PS2.API do
 	def send_query(query) when is_bitstring(query) do
 
 		with {:ok, res} <- get(query),
-		{:ok, %{:error => m}} <- Jason.decode(res.body, keys: :atoms), do:
+		{:ok, %{"error" => m}} <- Jason.decode(res.body), do:
 		{:error, %PS2.API.Error{message: m}}
 	end
 	def send_query(%Query{} = q) do
@@ -56,8 +56,18 @@ defmodule PS2.API do
 	@spec get_collections() :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
 	def get_collections do
 		with {:ok, res} <- get(""),
-		{:ok, %{:error => m}} <- Jason.decode(res.body, keys: :atoms), do:
+		{:ok, %{:error => m}} <- Jason.decode(res.body), do:
 		{:error, %PS2.API.Error{message: m}}
+	end
+
+	@spec get_image_url(String.t()) :: String.t()
+	def get_image_url(image_path) do
+		"https://census.daybreakgames.com#{image_path}"
+	end
+
+	@spec get_image(String.t()) :: {:ok, binary()} | {:error, HTTPoison.Error.t()}
+	def get_image(image_path) do
+		with {:ok, res} <- HTTPoison.get("https://census.daybreakgames.com#{image_path}"), do: {:ok, res.body}
 	end
 
 	@doc """
@@ -68,7 +78,7 @@ defmodule PS2.API do
 	def encode(%Query{} = q) do
 		{:ok,
 			"#{q.collection}?"
-			<> encode_terms(q.terms)
+			<> encode_params(q.params)
 			<> (length(q.joins) > 0 && ("&c:join=" <> Enum.map_join(q.joins, ",", &encode_join/1)) || "")
 			<> (not is_nil(q.tree) && "&c:tree=#{encode_tree(q.tree)}" || "")
 			<> (not is_nil(q.sort) && "&c:sort=#{encode_sort(q.sort)}" || "")
@@ -76,10 +86,10 @@ defmodule PS2.API do
 	end
 
 	defp encode_join(%Join{collection: col} = join) when not is_nil(col) do
-		"#{col}#{map_size(join.terms) > 0 && "^" || ""}"
-		<> Enum.map_join(join.terms, "^", fn
-				{:terms, terms} when map_size(terms) > 0 -> "terms:#{encode_terms(terms, "'")}"
-				{key, val} when not is_nil(val) -> "#{key}:#{encode_term_values(val)}"
+		"#{col}#{map_size(join.params) > 0 && "^" || ""}"
+		<> Enum.map_join(join.params, "^", fn
+				{:terms, terms} when map_size(terms) > 0 -> "terms:#{encode_terms(terms)}"
+				{key, val} when not is_nil(val) -> "#{key}:#{encode_param_values(val)}"
 			end)
 		<> (length(join.joins) > 0 && "(#{Enum.map_join(join.joins, ",", &encode_join/1)})" || "")
 	end
@@ -99,13 +109,19 @@ defmodule PS2.API do
 		end
 	end
 
-	defp encode_terms(values, separator \\ "&") do
+	defp encode_params(values, separator \\ "&") do
 		Enum.map_join(values, separator, fn
-			{key, {modifier, val}} when not is_nil(val) -> "#{key}=#{modifier}#{encode_term_values(val)}"
-			{key, val} when not is_nil(val) -> "#{key}=#{encode_term_values(val)}"
+			{key, {modifier, val}} when not is_nil(val) -> "#{key}=#{modifier}#{encode_param_values(val)}"
+			{key, val} when not is_nil(val) -> "#{key}=#{encode_param_values(val)}"
 		end)
 	end
 
-	defp encode_term_values(values) when is_list(values), do: Enum.join(values, "'")
-	defp encode_term_values(value) when is_bitstring(value) or is_boolean(value) or is_integer(value), do: value
+	defp encode_terms(terms) when is_map(terms), do:
+		Enum.map_join(terms, "'", fn
+			{key, {modifier, val_list}} when not is_nil(val_list) and is_list(val_list) -> Enum.map_join(val_list, "'", &("#{key}=#{modifier}#{&1}"))
+			{key, {modifier, val}} when not is_nil(val) -> "#{key}=#{modifier}#{val}"
+		end)
+
+	defp encode_param_values(values) when is_list(values), do: Enum.join(values, "'")
+	defp encode_param_values(value) when is_bitstring(value) or is_boolean(value) or is_integer(value), do: value
 end

@@ -5,11 +5,11 @@ defmodule PS2.API.Join do
 
   alias PS2.API.Join
 
-  defstruct [:collection, terms: %{}, joins: []]
+  defstruct [:collection, params: %{}, joins: []]
 
   @type t() :: %Join{
 		collection: String.t() | nil,
-		terms: map(),
+		params: map(),
 		joins: [t()]
 	}
 
@@ -30,6 +30,6 @@ defmodule PS2.API.Join do
   def new(opts),
     do: %Join{
       collection: Keyword.get(opts, :collection),
-      terms: Keyword.delete(opts, :collection) |> Enum.into(%{})
+      params: (for {key, val} <- Keyword.delete(opts, :collection), into: %{}, do: {Atom.to_string(key), val})
     }
 end

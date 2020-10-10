@@ -126,11 +126,11 @@ defmodule MyApp.EventStream do
   use PS2.SocketClient
 
   def start_link do
-		subscriptions = [
-			events: ["MetagameEvent", "VehicleDestroy"], 
-			worlds: ["Emerald", "Miller"], 
-			characters: ["all"]
-		]
+    subscriptions = [
+      events: ["MetagameEvent", "VehicleDestroy"], 
+      worlds: ["Emerald", "Miller"], 
+      characters: ["all"]
+    ]
     PS2.SocketClient.start_link(__MODULE__, subscriptions)
   end
 

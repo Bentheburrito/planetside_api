@@ -16,7 +16,7 @@ defmodule PS2.API.QueryTest do
     end
 
     test "is encoded when passed to to_string/1" do
-      q = %Query{collection: "collection", terms: %{"character_id" => {"", "1231231231231234"}}}
+      q = %Query{collection: "collection", params: %{"character_id" => {"", "1231231231231234"}}}
       assert to_string(q) === "collection?character_id=1231231231231234"
     end
   end

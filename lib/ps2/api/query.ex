@@ -5,11 +5,11 @@ defmodule PS2.API.Query do
 
   alias PS2.API.Query
 
-  defstruct collection: nil, terms: %{}, joins: [], tree: nil, sort: nil
+  defstruct collection: nil, params: %{}, joins: [], tree: nil, sort: nil
 
   @type t() :: %Query{
           collection: String.t() | nil,
-          terms: map(),
+          params: map(),
           joins: list(PS2.API.Join.t()),
           tree: PS2.API.Tree.t() | nil,
           sort: sort_terms | nil
