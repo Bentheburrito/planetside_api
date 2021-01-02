@@ -10,6 +10,13 @@ defmodule PS2.Socket do
 		WebSockex.start_link("wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}", __MODULE__, [clients: []], name: __MODULE__, handle_initial_conn_failure: true)
 	end
 
+	@doc """
+	Resubscribe to all events
+	"""
+	def resubscribe() do
+		WebSockex.cast(PS2.Socket, :resubscribe)
+	end
+
 	# WebSockex callbacks
 
 	def handle_frame({_type, nil}, state), do: {:ok, state}
@@ -28,6 +35,10 @@ defmodule PS2.Socket do
 		Process.monitor(new_client.pid)
 
 		{:ok, new_state}
+	end
+
+	def handle_cast(:resubscribe, state) do
+		subscribe(state)
 	end
 
 	def handle_connect(_conn, state) do
@@ -57,7 +68,7 @@ defmodule PS2.Socket do
 				# if length(state[:clients]) > 0, do: subscribe(state)
 
 			{:ok, %{"subscription" => subscriptions}} ->
-				Logger.info("Subscribed to events #{subscriptions["eventNames"] |> Enum.join(", ")}, worlds: #{subscriptions["worlds"] |> Enum.join(", ")}, character count: #{subscriptions["characterCount"]}.")
+				Logger.info("Subscribed to events #{Enum.join(subscriptions["eventNames"], ", ")}, worlds: #{Enum.join(subscriptions["worlds"], ", ")}, character count: #{subscriptions["characterCount"]}.")
 
 			{:ok, message} ->
 				with {:ok, event} <- create_event(message),
@@ -102,7 +113,7 @@ defmodule PS2.Socket do
 	defp is_subscribed?(client, {event_name, payload}) do
 		(
 			# True if the client is subscribed to the event.
-			Enum.member?(client.events, event_name) and
+			(Enum.member?(client.events, event_name) or Enum.member?(client.events, "all")) and
 			# If the payload doesn't have a "world_id" key, skip the test (true).
 			# If the client is subscribed to all worlds, pass the test (true).
 			# If the client is subscribed to events from this world, pass the test (true).

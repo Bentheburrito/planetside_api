@@ -6,11 +6,12 @@ defmodule PS2.API do
 	`result` is a map.
 
 		iex> q = PS2.API.Query.new(collection: "character_name")
+		...> |> PS2.API.QueryBuilder.term("name.first_lower", "snowful")
 		%PS2.API.Query{
 		  collection: "character_name",
-		  joins: [],
+			joins: [],
+			params: %{"name.first_lower" => {"", "snowful"}},
 		  sort: nil,
-		  params: %{},
 		  tree: nil
 		}
 		iex> PS2.API.send_query(q)
@@ -18,8 +19,8 @@ defmodule PS2.API do
 		  %{
 		    "character_name_list" => [
 		      %{
-		        "character_id" => "1",
-		        "name" => %{"first" => "test character", "first_lower" => "test character"}
+		        "character_id" => "5428713425545165425",
+		        "name" => %{"first" => "Snowful", "first_lower" => "snowful"}
 		      }
 		    ],
 	      "returned" => 1
@@ -29,6 +30,8 @@ defmodule PS2.API do
 	alias PS2.API.{Query, Join, Tree}
 
 	@type result :: map()
+
+	@error_keys ["error", "errorMessage", "errorCode"]
 
 	defp get(query) do
 		sid = Application.fetch_env!(:planetside_api, :service_id)
@@ -42,8 +45,13 @@ defmodule PS2.API do
 	def send_query(query) when is_bitstring(query) do
 
 		with {:ok, res} <- get(query),
-		{:ok, %{"error" => m}} <- Jason.decode(res.body), do:
-		{:error, %PS2.API.Error{message: m}}
+		{:ok, decoded_res} <- Jason.decode(res.body),
+		{error_map, valid_res} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
+			{:ok, valid_res}
+		else
+			{error_map, _} when is_map(error_map) -> {:error, %PS2.API.Error{message: Enum.map_join(error_map, " ", fn {_, val} -> "#{val}" end)}}
+			error -> error
+		end
 	end
 	def send_query(%Query{} = q) do
 		with {:ok, encoded} <- encode(q),
@@ -56,12 +64,17 @@ defmodule PS2.API do
 	@spec get_collections() :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
 	def get_collections do
 		with {:ok, res} <- get(""),
-		{:ok, %{:error => m}} <- Jason.decode(res.body), do:
-		{:error, %PS2.API.Error{message: m}}
+		{:ok, decoded_res} <- Jason.decode(res.body),
+		{error_map, valid_res} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
+			{:ok, valid_res}
+		else
+			{error_map, _} when is_map(error_map) -> {:error, %PS2.API.Error{message: Enum.map_join(error_map, " ", fn {_, val} -> "#{val}" end)}}
+			error -> error
+		end
 	end
 
 	@doc """
-	Gets the image link
+	Gets the image link.
 	"""
 	@spec get_image_url(String.t()) :: String.t()
 	def get_image_url(image_path) do
@@ -88,6 +101,7 @@ defmodule PS2.API do
 			<> (length(q.joins) > 0 && ("&c:join=" <> Enum.map_join(q.joins, ",", &encode_join/1)) || "")
 			<> (not is_nil(q.tree) && "&c:tree=#{encode_tree(q.tree)}" || "")
 			<> (not is_nil(q.sort) && "&c:sort=#{encode_sort(q.sort)}" || "")
+			|> URI.encode()
 		}
 	end
 
@@ -95,7 +109,7 @@ defmodule PS2.API do
 		"#{col}#{map_size(join.params) > 0 && "^" || ""}"
 		<> Enum.map_join(join.params, "^", fn
 				{:terms, terms} when map_size(terms) > 0 -> "terms:#{encode_terms(terms)}"
-				{key, val} when not is_nil(val) -> "#{key}:#{encode_param_values(val)}"
+				{key, val} when not is_nil(val) -> "#{key}:#{encode_param_values(val, "'")}"
 			end)
 		<> (length(join.joins) > 0 && "(#{Enum.map_join(join.joins, ",", &encode_join/1)})" || "")
 	end
@@ -128,6 +142,7 @@ defmodule PS2.API do
 			{key, {modifier, val}} when not is_nil(val) -> "#{key}=#{modifier}#{val}"
 		end)
 
-	defp encode_param_values(values) when is_list(values), do: Enum.join(values, "'")
-	defp encode_param_values(value) when is_bitstring(value) or is_boolean(value) or is_integer(value), do: value
+	defp encode_param_values(values, separator \\ ",")
+	defp encode_param_values(values, separator) when is_list(values), do: Enum.join(values, separator)
+	defp encode_param_values(value, _separator) when is_bitstring(value) or is_boolean(value) or is_integer(value), do: value
 end

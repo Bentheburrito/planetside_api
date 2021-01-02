@@ -110,7 +110,7 @@ defmodule PS2.SocketClient do
   defp proc_loop(module, subscriptions) do
     receive do
       {:GAME_EVENT, event} ->
-        Task.start_link(fn -> module.handle_event(event) end)
+        Task.start(fn -> module.handle_event(event) end)
         proc_loop(module, subscriptions)
 
       _ ->

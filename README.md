@@ -1,4 +1,4 @@
-# Planetside 2 API Wrapper v0.1.2
+# Planetside 2 API Wrapper v0.1
 
 A library that provides clean PS2 Census query creation
 and Event Stream management for Elixir developers.
@@ -137,7 +137,7 @@ defmodule MyApp.EventStream do
   def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
   def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
 
-	# Catch-all callback.
+  # Catch-all callback.
   def handle_event({event, _payload}) do
     IO.puts "Recieved unhandled event: #{event}"
   end
@@ -150,7 +150,7 @@ as the first argument, and a keyword list of subscriptions as the second argumen
 character IDs. See a full list of event names in the
 [Event Streaming docs](https://census.daybreakgames.com/#what-is-websocket).
 
-`SocketClient`s also fit well into supervision trees:
+Here is an example of a `SocketClient` in a supervision tree:
 
 ```elixir
 defmodule MyApp.Supervisor do
@@ -185,9 +185,8 @@ defmodule MyApp.EventStream do
 end
 ```
 
-However, if you are not interested in Event Streaming at all, you can set 
-`event_streaming: false` in your config file to prevent the socket process
-from starting.
+If you are not interested in Event Streaming at all, you can set 
+`event_streaming: false` in your config file.
 ```elixir
 import Config
 config :planetside_api, service_id: "service_id_here", event_streaming: false

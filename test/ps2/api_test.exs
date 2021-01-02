@@ -3,7 +3,9 @@ defmodule PS2.APITest do
   doctest PS2.API
 
   import PS2.API.QueryBuilder
-  alias PS2.API.{Query, Join, Tree}
+	alias PS2.API.{Query, Join, Tree}
+
+	@invalid_search_term_message "SERVER_ERROR INVALID_SEARCH_TERM: Invalid search term: c:exactMatchFirst. Value must be a boolean: 0, false, f, 1, true or t."
 
   test "Ensure proper query encoding" do
     q =
@@ -27,9 +29,9 @@ defmodule PS2.APITest do
 
     assert PS2.API.encode(q) ==
 			{:ok,
-			"test_col?c:lang=en&c:limit=12&c:join=test_col_join^hide:some_other_field'another_field^inject_at:name^show:some_field&c:tree=field:some_field^list:1&c:sort=key:1"}
+			"test_col?c:lang=en&c:limit=12&c:join=test_col_join%5Ehide:some_other_field'another_field%5Einject_at:name%5Eshow:some_field&c:tree=field:some_field%5Elist:1&c:sort=key:1"}
 
-    assert to_string(q) == "test_col?c:lang=en&c:limit=12&c:join=test_col_join^hide:some_other_field'another_field^inject_at:name^show:some_field&c:tree=field:some_field^list:1&c:sort=key:1"
+    assert to_string(q) == "test_col?c:lang=en&c:limit=12&c:join=test_col_join%5Ehide:some_other_field'another_field%5Einject_at:name%5Eshow:some_field&c:tree=field:some_field%5Elist:1&c:sort=key:1"
   end
 
   describe "API" do
@@ -57,6 +59,15 @@ defmodule PS2.APITest do
     test "query with bad collection returns a PS2.API.Error with message \"No data found.\"" do
       q = Query.new() |> collection("does_not_exist")
       assert PS2.API.send_query(q) == {:error, %PS2.API.Error{message: "No data found."}}
-    end
+		end
+
+		test "query with bad param value returns a PS2.API.Error with message an INVALID_SEARCH_TERM message." do
+			q =
+				Query.new()
+				|> collection("character_name")
+				|> term("name.first_lower", "snowful")
+				|> exact_match_first("invalid_value")
+			assert PS2.API.send_query(q) == {:error, %PS2.API.Error{message: @invalid_search_term_message}}
+		end
   end
 end
