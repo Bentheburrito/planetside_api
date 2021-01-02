@@ -12,7 +12,7 @@ Add `planetside_api` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:planetside_api, "~> 0.1.2"}
+    {:planetside_api, "~> 0.1.4"}
   ]
 end
 ```
