@@ -4,7 +4,7 @@ defmodule PS2.MixProject do
   def project do
     [
       app: :planetside_api,
-      version: "0.1.3",
+      version: "0.1.4",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
       description: description(),
