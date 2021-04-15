@@ -3,8 +3,8 @@ defmodule PS2.API.Collection do
   # WIP
   defstruct name: nil, fields: [], resolves: []
 
-  def single_character_by_id,
-    do: %__MODULE__{
+	def single_character_by_id, do:
+		%__MODULE__{
       name: "single_character_by_id",
       fields: [],
       resolves: [
@@ -17,4 +17,8 @@ defmodule PS2.API.Collection do
         "faction"
       ]
     }
+
+	defmodule SingleCharacterByID do
+
+	end
 end

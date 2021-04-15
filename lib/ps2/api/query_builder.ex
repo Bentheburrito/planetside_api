@@ -27,7 +27,7 @@ defmodule PS2.API.QueryBuilder do
 		iex> PS2.API.encode query
 		{:ok, "character?c:exactMatchFirst=true&c:limit=3&c:show=character_id,name.en,faction_id&character_id=5428011263335537297"}
 
-	You can then send the query to the api using `PS2.API.send_query/1`.
+	You can then send the query to the api using `PS2.API.query/1`.
 
 	## Search Modifiers
 	The Census API provides [search modifiers](https://census.daybreakgames.com/#search-modifier) for filtering query results.

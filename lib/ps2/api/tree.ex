@@ -24,8 +24,6 @@ defmodule PS2.API.Tree do
 		start: String.t()
 	]
 
-	@spec new() :: t()
-	def new, do: %Tree{}
 	@spec new(opts) :: t()
-	def new(opts), do: %Tree{terms: Enum.into(opts, %{})}
+	def new(opts \\ []), do: %Tree{terms: Enum.into(opts, %{})}
 end

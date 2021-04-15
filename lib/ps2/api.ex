@@ -2,8 +2,7 @@ defmodule PS2.API do
 	@moduledoc """
 	Your gateway to the Census API.
 
-	Pass you queries to `send_query/1` and get `{:ok, result}`, where
-	`result` is a map.
+	Use `query/1` to get data from the Census.
 
 		iex> q = PS2.API.Query.new(collection: "character_name")
 		...> |> PS2.API.QueryBuilder.term("name.first_lower", "snowful")
@@ -14,22 +13,21 @@ defmodule PS2.API do
 		  sort: nil,
 		  tree: nil
 		}
-		iex> PS2.API.send_query(q)
+		iex> PS2.API.query(q)
 		{:ok,
-		  %{
-		    "character_name_list" => [
+		  %PS2.API.QueryResult{
+		    data: [
 		      %{
 		        "character_id" => "5428713425545165425",
 		        "name" => %{"first" => "Snowful", "first_lower" => "snowful"}
 		      }
 		    ],
-	      "returned" => 1
-      }}
+	      returned: 1
+      }
+		}
 	"""
 
-	alias PS2.API.{Query, Join, Tree}
-
-	@type result :: map()
+	alias PS2.API.{Query, Join, Tree, QueryResult}
 
 	@error_keys ["error", "errorMessage", "errorCode"]
 
@@ -39,34 +37,42 @@ defmodule PS2.API do
 	end
 
 	@doc """
-	Sends `query` to the API, encoding it if necessary. Returns `{:ok, result}` if successful, where `result` is a map.
+	Sends `query` to the API and returns a list of results if successful.
 	"""
-	@spec send_query(Query.t() | String.t()) :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
-	def send_query(query) when is_bitstring(query) do
+	@spec query(Query.t()) :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
+	def query(%Query{} = query) do
 
-		with {:ok, res} <- get(query),
-		{:ok, decoded_res} <- Jason.decode(res.body),
-		{error_map, valid_res} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
-			{:ok, valid_res}
+		with {:ok, encoded} <- encode(query),
+			{:ok, res} <- get(encoded),
+			{:ok, decoded_res} <- Jason.decode(res.body),
+			res_key = query.collection <> "_list",
+			{error_map, %{^res_key => res_list, "returned" => returned}} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
+				{:ok, %QueryResult{data: res_list, returned: returned}}
 		else
-			{error_map, _} when is_map(error_map) -> {:error, %PS2.API.Error{message: Enum.map_join(error_map, " ", fn {_, val} -> "#{val}" end)}}
+			{error_map, _} when is_map(error_map) -> {:error, %PS2.API.Error{message: Enum.map_join(error_map, " ", fn {_, val} -> "#{val}" end), query: query}}
 			error -> error
 		end
 	end
-	def send_query(%Query{} = q) do
-		with {:ok, encoded} <- encode(q),
-		do: send_query(encoded)
+
+	@doc """
+	Sends `query` to the API and returns the first result if successful.
+	"""
+	@spec query_one(Query.t()) :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
+	def query_one(%Query{} = query) do
+		with {:ok, %QueryResult{} = res} <- query(query) do
+			{:ok, %{res | data: List.first(res.data)}}
+		end
 	end
 
 	@doc """
 	View a list of all the public API collections and their resolves.
 	"""
-	@spec get_collections() :: {:ok, result} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
-	def get_collections do
+	@spec get_collections() :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
+	def get_collections() do
 		with {:ok, res} <- get(""),
 		{:ok, decoded_res} <- Jason.decode(res.body),
-		{error_map, valid_res} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
-			{:ok, valid_res}
+		{error_map, %{"datatype_list" => res_list, "returned" => returned}} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
+			{:ok, %QueryResult{data: res_list, returned: returned}}
 		else
 			{error_map, _} when is_map(error_map) -> {:error, %PS2.API.Error{message: Enum.map_join(error_map, " ", fn {_, val} -> "#{val}" end)}}
 			error -> error
@@ -131,6 +137,7 @@ defmodule PS2.API do
 
 	defp encode_params(values, separator \\ "&") do
 		Enum.map_join(values, separator, fn
+			{key, {modifier, val_list}} when is_list(val_list) -> Enum.map_join(val_list, "&", &("#{key}=#{modifier}#{&1}"))
 			{key, {modifier, val}} when not is_nil(val) -> "#{key}=#{modifier}#{encode_param_values(val)}"
 			{key, val} when not is_nil(val) -> "#{key}=#{encode_param_values(val)}"
 		end)

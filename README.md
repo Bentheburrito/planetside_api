@@ -32,7 +32,7 @@ structs, `PS2.API.{Query, Join, Tree}`, can be manipulated
 and added to via the functions from `PS2.API.QueryBuilder`.
 
 `Query` is a struct representation of a Census query that is
-encoded into its url form when passed to `PS2.API.send_query/1`
+encoded into its url form when passed to `PS2.API.query/1`
 or `PS2.API.encode/1`. A `Query` can contain many `Join`s and
 a `Tree`.
 
@@ -81,7 +81,7 @@ q =
   |> tree(online_status_tree)
 ```
 
-Queries are sent to the API with `PS2.API.send_query/1`,
+Queries are sent to the API with `PS2.API.query/1`,
 returning `{:ok, results}`.
 
 ### Nesting `Join`s
