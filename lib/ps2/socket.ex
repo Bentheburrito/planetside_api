@@ -7,7 +7,12 @@ defmodule PS2.Socket do
 
 	def start_link(_opts) do
 		sid = Application.fetch_env!(:planetside_api, :service_id)
-		WebSockex.start_link("wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}", __MODULE__, [clients: []], name: __MODULE__, handle_initial_conn_failure: true)
+		opts = [
+			name: __MODULE__,
+			async: true,
+			handle_initial_conn_failure: true
+		]
+		WebSockex.start_link("wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}", __MODULE__, [clients: []], opts)
 	end
 
 	@doc """
@@ -44,6 +49,13 @@ defmodule PS2.Socket do
 	def handle_connect(_conn, state) do
 		Logger.info("Connected to the Socket.")
 		if length(state[:clients]) > 0, do: subscribe(state)
+		{:ok, state}
+	end
+
+	# Handle ESS timing out
+	def handle_disconnect(%{attempt_number: 2, reason: %WebSockex.ConnError{original: :timeout}}, state) do
+		Logger.warn("The Event Streaming Service is timing out, will retry initial connection in 1 minute...")
+		Process.sleep(60_000)
 		{:ok, state}
 	end
 
@@ -114,7 +126,7 @@ defmodule PS2.Socket do
 		(
 			# True if the client is subscribed to the event.
 			(Enum.member?(client.events, event_name) or Enum.member?(client.events, "all")) and
-			# If the payload doesn't have a "world_id" key, skip the test (true).
+			# If the payload doesn't have a "world_id" key, pass the test (true).
 			# If the client is subscribed to all worlds, pass the test (true).
 			# If the client is subscribed to events from this world, pass the test (true).
 			(not Map.has_key?(payload, "world_id") or Enum.member?(client.worlds, "all") or Map.get(payload, "world_id") in client.worlds) and

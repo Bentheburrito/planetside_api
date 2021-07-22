@@ -31,19 +31,19 @@ defmodule PS2.API do
 
 	@error_keys ["error", "errorMessage", "errorCode"]
 
-	defp get(query) do
+	defp get(query, opts \\ []) do
 		sid = Application.fetch_env!(:planetside_api, :service_id)
-		HTTPoison.get("https://census.daybreakgames.com/s:#{sid}/get/ps2:v2/#{query}")
+		HTTPoison.get("https://census.daybreakgames.com/s:#{sid}/get/ps2:v2/#{query}", opts)
 	end
 
 	@doc """
 	Sends `query` to the API and returns a list of results if successful.
 	"""
-	@spec query(Query.t()) :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
-	def query(%Query{} = query) do
+	@spec query(Query.t(), Keyword.t()) :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
+	def query(%Query{} = query, httpoison_opts \\ []) do
 
 		with {:ok, encoded} <- encode(query),
-			{:ok, res} <- get(encoded),
+			{:ok, res} <- get(encoded, httpoison_opts),
 			{:ok, decoded_res} <- Jason.decode(res.body),
 			res_key = query.collection <> "_list",
 			{error_map, %{^res_key => res_list, "returned" => returned}} when error_map == %{} <- Map.split(decoded_res, @error_keys) do
@@ -57,9 +57,9 @@ defmodule PS2.API do
 	@doc """
 	Sends `query` to the API and returns the first result if successful.
 	"""
-	@spec query_one(Query.t()) :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
-	def query_one(%Query{} = query) do
-		with {:ok, %QueryResult{} = res} <- query(query) do
+	@spec query_one(Query.t(), Keyword.t()) :: {:ok, QueryResult.t()} | {:error, HTTPoison.Error.t() | Jason.DecodeError.t() | PS2.API.Error.t()}
+	def query_one(%Query{} = query, httpoison_opts \\ []) do
+		with {:ok, %QueryResult{} = res} <- query(query, httpoison_opts) do
 			{:ok, %{res | data: List.first(res.data)}}
 		end
 	end
