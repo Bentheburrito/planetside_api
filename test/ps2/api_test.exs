@@ -3,9 +3,9 @@ defmodule PS2.APITest do
   doctest PS2.API
 
   import PS2.API.QueryBuilder
-	alias PS2.API.{Query, Join, Tree, QueryResult}
+  alias PS2.API.{Query, Join, Tree, QueryResult}
 
-	@invalid_search_term_message "SERVER_ERROR INVALID_SEARCH_TERM: Invalid search term: c:exactMatchFirst. Value must be a boolean: 0, false, f, 1, true or t."
+  @invalid_search_term_message "SERVER_ERROR INVALID_SEARCH_TERM: Invalid search term: c:exactMatchFirst. Value must be a boolean: 0, false, f, 1, true or t."
 
   test "Ensure proper query encoding" do
     q =
@@ -28,10 +28,11 @@ defmodule PS2.APITest do
       |> sort(%{"key" => "1"})
 
     assert PS2.API.encode(q) ==
-			{:ok,
-			"test_col?c:lang=en&c:limit=12&c:join=test_col_join%5Ehide:some_other_field'another_field%5Einject_at:name%5Eshow:some_field&c:tree=field:some_field%5Elist:1&c:sort=key:1"}
+             {:ok,
+              "test_col?c:lang=en&c:limit=12&c:join=test_col_join%5Ehide:some_other_field'another_field%5Einject_at:name%5Eshow:some_field&c:tree=field:some_field%5Elist:1&c:sort=key:1"}
 
-    assert to_string(q) == "test_col?c:lang=en&c:limit=12&c:join=test_col_join%5Ehide:some_other_field'another_field%5Einject_at:name%5Eshow:some_field&c:tree=field:some_field%5Elist:1&c:sort=key:1"
+    assert to_string(q) ==
+             "test_col?c:lang=en&c:limit=12&c:join=test_col_join%5Ehide:some_other_field'another_field%5Einject_at:name%5Eshow:some_field&c:tree=field:some_field%5Elist:1&c:sort=key:1"
   end
 
   describe "API" do
@@ -43,14 +44,14 @@ defmodule PS2.APITest do
         |> show("character_id")
 
       assert PS2.API.query(q) ===
-				{:ok,
-				%QueryResult{
-					data: [%{"character_id" => "5428713425545165425"}],
-					returned: 1
-				}}
+               {:ok,
+                %QueryResult{
+                  data: [%{"character_id" => "5428713425545165425"}],
+                  returned: 1
+                }}
     end
 
-		test "can retrieve one character from a name" do
+    test "can retrieve one character from a name" do
       q =
         Query.new()
         |> collection("character_name")
@@ -58,11 +59,11 @@ defmodule PS2.APITest do
         |> show("character_id")
 
       assert PS2.API.query_one(q) ===
-				{:ok,
-				%QueryResult{
-					data: %{"character_id" => "5428713425545165425"},
-					returned: 1
-				}}
+               {:ok,
+                %QueryResult{
+                  data: %{"character_id" => "5428713425545165425"},
+                  returned: 1
+                }}
     end
 
     test "can retrieve collection list" do
@@ -73,17 +74,43 @@ defmodule PS2.APITest do
 
     test "query with bad collection returns a PS2.API.Error with message \"No data found.\"" do
       q = Query.new() |> collection("does_not_exist")
-      assert PS2.API.query(q) == {:error, %PS2.API.Error{message: "No data found.", query: %PS2.API.Query{collection: "does_not_exist", joins: [], params: %{}, sort: nil, tree: nil}}}
-		end
 
-		test "query with bad param value returns a PS2.API.Error with message an INVALID_SEARCH_TERM message." do
-			q =
-				Query.new()
-				|> collection("character_name")
-				|> term("name.first_lower", "snowful")
-				|> exact_match_first("invalid_value")
-			assert PS2.API.query(q) == {:error, %PS2.API.Error{message: @invalid_search_term_message,
-			query: %PS2.API.Query{collection: "character_name", joins: [], params: %{"c:exactMatchFirst" => "invalid_value", "name.first_lower" => {"", "snowful"}}, sort: nil, tree: nil}}}
-		end
+      assert PS2.API.query(q) ==
+               {:error,
+                %PS2.API.Error{
+                  message: "No data found.",
+                  query: %PS2.API.Query{
+                    collection: "does_not_exist",
+                    joins: [],
+                    params: %{},
+                    sort: nil,
+                    tree: nil
+                  }
+                }}
+    end
+
+    test "query with bad param value returns a PS2.API.Error with message an INVALID_SEARCH_TERM message." do
+      q =
+        Query.new()
+        |> collection("character_name")
+        |> term("name.first_lower", "snowful")
+        |> exact_match_first("invalid_value")
+
+      assert PS2.API.query(q) ==
+               {:error,
+                %PS2.API.Error{
+                  message: @invalid_search_term_message,
+                  query: %PS2.API.Query{
+                    collection: "character_name",
+                    joins: [],
+                    params: %{
+                      "c:exactMatchFirst" => "invalid_value",
+                      "name.first_lower" => {"", "snowful"}
+                    },
+                    sort: nil,
+                    tree: nil
+                  }
+                }}
+    end
   end
 end

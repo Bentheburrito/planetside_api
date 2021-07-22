@@ -8,21 +8,21 @@ defmodule PS2.API.Join do
   defstruct [:collection, params: %{}, joins: []]
 
   @type t() :: %Join{
-		collection: String.t() | nil,
-		params: map(),
-		joins: [t()]
-	}
+          collection: String.t() | nil,
+          params: map(),
+          joins: [t()]
+        }
 
   @type opts :: [
-		collection: String.t(),
-		on: String.t(),
-		to: String.t(),
-		list: boolean(),
-		show: list(term()),
-		hide: list(term()),
-		inject_at: String.t(),
-		outer: boolean()
-	]
+          collection: String.t(),
+          on: String.t(),
+          to: String.t(),
+          list: boolean(),
+          show: list(term()),
+          hide: list(term()),
+          inject_at: String.t(),
+          outer: boolean()
+        ]
 
   @spec new() :: t()
   def new, do: %Join{}
@@ -30,6 +30,11 @@ defmodule PS2.API.Join do
   def new(opts),
     do: %Join{
       collection: Keyword.get(opts, :collection),
-      params: (for {key, val} <- Keyword.delete(opts, :collection), into: %{}, do: {Atom.to_string(key), val})
+      params:
+        for(
+          {key, val} <- Keyword.delete(opts, :collection),
+          into: %{},
+          do: {Atom.to_string(key), val}
+        )
     }
 end

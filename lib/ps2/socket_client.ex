@@ -56,19 +56,19 @@ defmodule PS2.SocketClient do
   """
   @type event :: {String.t(), map()}
 
-	@typedoc """
-	An element in a keyword list where the key is either `:events`,
-	`:worlds`, or `:characters`, and the value is a list of event
-	names, world names, or character IDs with respect to the key.
-	"""
+  @typedoc """
+  An element in a keyword list where the key is either `:events`,
+  `:worlds`, or `:characters`, and the value is a list of event
+  names, world names, or character IDs with respect to the key.
+  """
   @type subscription ::
-		{:events, [String.t()]}
-		| {:worlds, [String.t()]}
-		| {:characters, [integer() | String.t()]}
+          {:events, [String.t()]}
+          | {:worlds, [String.t()]}
+          | {:characters, [integer() | String.t()]}
 
-	@typedoc """
-	A list of `subscription`s.
-	"""
+  @typedoc """
+  A list of `subscription`s.
+  """
   @type subscription_list :: [subscription] | []
 
   @world_map %{

@@ -1,8 +1,8 @@
 defmodule PS2.API.QueryResult do
-	defstruct data: [], returned: 0
+  defstruct data: [], returned: 0
 
-	@type t() :: %__MODULE__{
-		data: list() | map(),
-		returned: integer()
-	}
+  @type t() :: %__MODULE__{
+          data: list() | map(),
+          returned: integer()
+        }
 end

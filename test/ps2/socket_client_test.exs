@@ -47,9 +47,11 @@ defmodule PS2.TestClient do
 
   @impl PS2.SocketClient
   def handle_event({"VehicleDestroy", payload}),
-    do: if payload["character_id"] === "1", do: send(payload["test_pid"], {:vehicle_destroy, "1"})
+    do:
+      if(payload["character_id"] === "1", do: send(payload["test_pid"], {:vehicle_destroy, "1"}))
 
   @impl PS2.SocketClient
   def handle_event({_event, payload}),
-    do: if payload["character_id"] === "1", do: send(payload["test_pid"], {:unhandled_event, "1"})
+    do:
+      if(payload["character_id"] === "1", do: send(payload["test_pid"], {:unhandled_event, "1"}))
 end

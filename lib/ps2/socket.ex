@@ -1,137 +1,168 @@
 defmodule PS2.Socket do
-	@moduledoc false
-	use WebSockex
+  @moduledoc false
+  use WebSockex
 
-	require Logger
-	alias PS2.SocketClient
+  require Logger
+  alias PS2.SocketClient
 
-	def start_link(_opts) do
-		sid = Application.fetch_env!(:planetside_api, :service_id)
-		opts = [
-			name: __MODULE__,
-			async: true,
-			handle_initial_conn_failure: true
-		]
-		WebSockex.start_link("wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}", __MODULE__, [clients: []], opts)
-	end
+  def start_link(_opts) do
+    sid = Application.fetch_env!(:planetside_api, :service_id)
 
-	@doc """
-	Resubscribe to all events
-	"""
-	def resubscribe() do
-		WebSockex.cast(PS2.Socket, :resubscribe)
-	end
+    opts = [
+      name: __MODULE__,
+      async: true,
+      handle_initial_conn_failure: true
+    ]
 
-	# WebSockex callbacks
+    WebSockex.start_link(
+      "wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}",
+      __MODULE__,
+      [clients: []],
+      opts
+    )
+  end
 
-	def handle_frame({_type, nil}, state), do: {:ok, state}
-	def handle_frame({_type, msg}, state) do
-		handle_message(msg, state)
+  @doc """
+  Resubscribe to all events
+  """
+  def resubscribe() do
+    WebSockex.cast(PS2.Socket, :resubscribe)
+  end
+
+  # WebSockex callbacks
+
+  def handle_frame({_type, nil}, state), do: {:ok, state}
+
+  def handle_frame({_type, msg}, state) do
+    handle_message(msg, state)
     {:ok, state}
-	end
+  end
 
   def handle_cast({:send, frame}, state), do: {:reply, frame, state}
 
-	def handle_cast({:subscribe, %SocketClient{} = new_client}, state) do
-		new_state = Keyword.update(state, :clients, [new_client], &([new_client | &1]))
+  def handle_cast({:subscribe, %SocketClient{} = new_client}, state) do
+    new_state = Keyword.update(state, :clients, [new_client], &[new_client | &1])
 
-		subscribe(new_state)
-		send(new_client.pid, {:STATUS_EVENT, {"Subscribed", :ok}})
-		Process.monitor(new_client.pid)
+    subscribe(new_state)
+    send(new_client.pid, {:STATUS_EVENT, {"Subscribed", :ok}})
+    Process.monitor(new_client.pid)
 
-		{:ok, new_state}
-	end
+    {:ok, new_state}
+  end
 
-	def handle_cast(:resubscribe, state) do
-		subscribe(state)
-	end
+  def handle_cast(:resubscribe, state) do
+    subscribe(state)
+  end
 
-	def handle_connect(_conn, state) do
-		Logger.info("Connected to the Socket.")
-		if length(state[:clients]) > 0, do: subscribe(state)
-		{:ok, state}
-	end
+  def handle_connect(_conn, state) do
+    Logger.info("Connected to the Socket.")
+    if length(state[:clients]) > 0, do: subscribe(state)
+    {:ok, state}
+  end
 
-	# Handle ESS timing out
-	def handle_disconnect(%{attempt_number: 2, reason: %WebSockex.ConnError{original: :timeout}}, state) do
-		Logger.warn("The Event Streaming Service is timing out, will retry initial connection in 1 minute...")
-		Process.sleep(60_000)
-		{:ok, state}
-	end
+  # Handle ESS timing out
+  def handle_disconnect(
+        %{attempt_number: 2, reason: %WebSockex.ConnError{original: :timeout}},
+        state
+      ) do
+    Logger.warn(
+      "The Event Streaming Service is timing out, will retry initial connection in 1 minute..."
+    )
 
-	def handle_disconnect(_status_map, state) do
-		Logger.info("Disconnected from the Socket, attempting to reconnect.")
-		{:reconnect, state}
-	end
+    Process.sleep(60_000)
+    {:ok, state}
+  end
 
-	def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-		new_state = Keyword.update!(state, :clients, &List.delete(&1, Enum.find(state[:clients], fn client -> client.pid === pid end)))
-		{:ok, new_state}
-	end
+  def handle_disconnect(_status_map, state) do
+    Logger.info("Disconnected from the Socket, attempting to reconnect.")
+    {:reconnect, state}
+  end
 
-	def handle_info(_, state), do: {:ok, state}
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    new_state =
+      Keyword.update!(
+        state,
+        :clients,
+        &List.delete(&1, Enum.find(state[:clients], fn client -> client.pid === pid end))
+      )
 
-	# Data Transformation + Dispatch
+    {:ok, new_state}
+  end
 
-	defp handle_message(msg, state) do
-		case Jason.decode(msg) do
-			{:ok, %{"connected" => "true"}} ->
-				Logger.info("Received connected message.")
-				# if length(state[:clients]) > 0, do: subscribe(state)
+  def handle_info(_, state), do: {:ok, state}
 
-			{:ok, %{"subscription" => subscriptions}} ->
-				Logger.info("Subscribed to events #{Enum.join(subscriptions["eventNames"], ", ")}, worlds: #{Enum.join(subscriptions["worlds"], ", ")}, character count: #{subscriptions["characterCount"]}.")
+  # Data Transformation + Dispatch
 
-			{:ok, message} ->
-				with {:ok, event} <- create_event(message),
-				do: send_event({:GAME_EVENT, event}, state)
+  defp handle_message(msg, state) do
+    case Jason.decode(msg) do
+      {:ok, %{"connected" => "true"}} ->
+        Logger.info("Received connected message.")
 
-			{:error, e} -> Logger.error(e)
-		end
-	end
+      # if length(state[:clients]) > 0, do: subscribe(state)
 
-	defp subscribe(state) do
-		subscriptions = Enum.reduce(state[:clients], [events: [], worlds: [], characters: []], fn (%SocketClient{} = client, acc) ->
-			[
-				events: acc[:events] ++ client.events,
-				worlds: acc[:worlds] ++ client.worlds,
-				characters: acc[:characters] ++ client.characters
-			]
-		end)
+      {:ok, %{"subscription" => subscriptions}} ->
+        Logger.info(
+          "Subscribed to events #{Enum.join(subscriptions["eventNames"], ", ")}, worlds: #{Enum.join(subscriptions["worlds"], ", ")}, character count: #{subscriptions["characterCount"]}."
+        )
 
-		payload = Jason.encode!(%{
-			"service" => "event",
-			"action" => "subscribe",
-			"characters" => subscriptions[:characters],
-			"worlds" => subscriptions[:worlds],
-			"eventNames" => subscriptions[:events]
-		})
-		WebSockex.cast(__MODULE__, {:send, {:text, payload}})
-		:ok
-	end
+      {:ok, message} ->
+        with {:ok, event} <- create_event(message),
+             do: send_event({:GAME_EVENT, event}, state)
 
-	defp create_event(message) do
-		with payload when not is_nil(payload) and is_map(payload) <- message["payload"] || message["online"],
-			event_name when not is_nil(event_name) <- payload["event_name"] || message["type"], do:
-				{:ok, {event_name, Map.delete(payload, "event_name")}}
-	end
+      {:error, e} ->
+        Logger.error(e)
+    end
+  end
 
-	defp send_event({_event_type, event} = game_event, state) do
-		with clients <- Keyword.get(state, :clients, nil), do:
-			Enum.each(clients, &(if is_subscribed?(&1, event), do: send(&1.pid, game_event)))
-		:ok
-	end
+  defp subscribe(state) do
+    subscriptions =
+      Enum.reduce(state[:clients], [events: [], worlds: [], characters: []], fn %SocketClient{} =
+                                                                                  client,
+                                                                                acc ->
+        [
+          events: acc[:events] ++ client.events,
+          worlds: acc[:worlds] ++ client.worlds,
+          characters: acc[:characters] ++ client.characters
+        ]
+      end)
 
-	defp is_subscribed?(client, {event_name, payload}) do
-		(
-			# True if the client is subscribed to the event.
-			(Enum.member?(client.events, event_name) or Enum.member?(client.events, "all")) and
-			# If the payload doesn't have a "world_id" key, pass the test (true).
-			# If the client is subscribed to all worlds, pass the test (true).
-			# If the client is subscribed to events from this world, pass the test (true).
-			(not Map.has_key?(payload, "world_id") or Enum.member?(client.worlds, "all") or Map.get(payload, "world_id") in client.worlds) and
-			# Same as above but with characters.
-			(not Map.has_key?(payload, "character_id") or Enum.member?(client.characters, "all") or Map.get(payload, "character_id") in client.characters)
-		)
-	end
+    payload =
+      Jason.encode!(%{
+        "service" => "event",
+        "action" => "subscribe",
+        "characters" => subscriptions[:characters],
+        "worlds" => subscriptions[:worlds],
+        "eventNames" => subscriptions[:events]
+      })
+
+    WebSockex.cast(__MODULE__, {:send, {:text, payload}})
+    :ok
+  end
+
+  defp create_event(message) do
+    with payload when not is_nil(payload) and is_map(payload) <-
+           message["payload"] || message["online"],
+         event_name when not is_nil(event_name) <- payload["event_name"] || message["type"],
+         do: {:ok, {event_name, Map.delete(payload, "event_name")}}
+  end
+
+  defp send_event({_event_type, event} = game_event, state) do
+    with clients <- Keyword.get(state, :clients, nil),
+         do: Enum.each(clients, &if(is_subscribed?(&1, event), do: send(&1.pid, game_event)))
+
+    :ok
+  end
+
+  defp is_subscribed?(client, {event_name, payload}) do
+    # True if the client is subscribed to the event.
+    # If the payload doesn't have a "world_id" key, pass the test (true).
+    # If the client is subscribed to all worlds, pass the test (true).
+    # If the client is subscribed to events from this world, pass the test (true).
+    # Same as above but with characters.
+    (Enum.member?(client.events, event_name) or Enum.member?(client.events, "all")) and
+      (not Map.has_key?(payload, "world_id") or Enum.member?(client.worlds, "all") or
+         Map.get(payload, "world_id") in client.worlds) and
+      (not Map.has_key?(payload, "character_id") or Enum.member?(client.characters, "all") or
+         Map.get(payload, "character_id") in client.characters)
+  end
 end
