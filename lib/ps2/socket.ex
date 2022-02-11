@@ -147,6 +147,9 @@ defmodule PS2.Socket do
         #{inspect(subscriptions)}
         """)
 
+      {:ok, %{"send this for help" => _}} ->
+        nil
+
       {:ok, message} ->
         with {:ok, event} <- create_event(message) do
           send_event(event, clients)
