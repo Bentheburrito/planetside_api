@@ -8,13 +8,14 @@ defmodule PS2.Socket do
   defmodule MyApp.Application do
     use Application
 
-    @impl true
+    @impl Application
     def start(_type, _args) do
       subscriptions = [
   			events: [PS2.player_login],
   			worlds: [PS2.connery, PS2.miller, PS2.soltech],
   			characters: ["all"]
   		]
+
       clients = [MyApp.EventHandler]
 
       ess_opts = [

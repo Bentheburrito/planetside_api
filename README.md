@@ -17,15 +17,8 @@ def deps do
 end
 ```
 
-Configure your service ID in `config/config.exs`
-```elixir
-import Config
-config :planetside_api, service_id: "service_id_here"
-```
-That's it! You can now create/send queries and setup Event
-Streaming.
-
 ## Census API Queries
+
 This wrapper provides several data structures and functions
 that make creating readable Census API queries easy. The
 structs, `PS2.API.{Query, Join, Tree}`, can be manipulated
@@ -37,6 +30,7 @@ or `PS2.API.encode/1`. A `Query` can contain many `Join`s and
 a `Tree`.
 
 ### Example query with a join and tree
+
 ```elixir
 # alias struct modules and import QueryBuilder for clean, readable pipelines.
 alias PS2.API.{Query, Join, Tree}
@@ -61,7 +55,7 @@ q =
 
 # For large queries with many joins, you may want to split these further into separate parts:
 
-online_status_join = 
+online_status_join =
   %Join{}
   |> collection("characters_online_status")
   |> inject_at("online")
@@ -85,6 +79,7 @@ Queries are sent to the API with `PS2.API.query/1`,
 returning `{:ok, results}`.
 
 ### Nesting `Join`s
+
 `Join`s can be nested within one another using `join/2`. For
 example:
 
@@ -107,6 +102,7 @@ Query.new(collection: "character")
   )
 )
 ```
+
 See the [API docs](https://census.daybreakgames.com/#query-commands)
 for more information on joins.
 
@@ -115,79 +111,76 @@ examples.
 
 ## Event Streaming
 
-Daybreak provides their [Event Streaming](https://census.daybreakgames.com/#what-is-websocket)
+Daybreak offers their [Event Streaming](https://census.daybreakgames.com/#what-is-websocket)
 service through websockets to provide developers with live in-game
 events as they occur. This wrapper handles the websocket connection
 and distributes parsed payloads through `PS2.SocketClient`s.
 
 ### Example SocketClient Implementation
+
 ```elixir
-defmodule MyApp.EventStream do
-  use PS2.SocketClient
+defmodule MyApp.EventHandler do
+  @behaviour PS2.SocketClient
 
-  def start_link do
-    subscriptions = [
-      events: ["MetagameEvent", "VehicleDestroy"], 
-      worlds: ["Emerald", "Miller"], 
-      characters: ["all"]
-    ]
-    PS2.SocketClient.start_link(__MODULE__, subscriptions)
+  @impl PS2.SocketClient
+  def handle_event({"PlayerLogin", payload}) do
+    IO.puts "PlayerLogin: #{payload["character_id"]}"
   end
-
-  def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
-  def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
 
   # Catch-all callback.
-  def handle_event({event, _payload}) do
-    IO.puts "Recieved unhandled event: #{event}"
+  @impl PS2.SocketClient
+  def handle_event({event_name, _payload}) do
+    IO.puts "Unhandled event: #{event_name}"
   end
 end
 ```
-`PS2.SocketClient.start_link/2` expects a module that implements `PS2.SocketClient`
-as the first argument, and a keyword list of subscriptions as the second argument.
-`:events` is a list of event names, `:worlds` is a list of world/server names 
-(Connery, Miller, Cobalt, Emerald, or Soltech), and `:characters` is a list of
-character IDs. See a full list of event names in the
-[Event Streaming docs](https://census.daybreakgames.com/#what-is-websocket).
 
-Here is an example of a `SocketClient` in a supervision tree:
+After creating a client module like the above, you can start `PS2.Socket`
+and pass the client in your supervision tree:
 
 ```elixir
-defmodule MyApp.Supervisor do
-  use Supervisor
+defmodule MyApp.Application do
+  use Application
 
-  def start_link(opts) do
-    Supervisor.start_link(__MODULE__, :ok, opts)
-  end
-
-  def init(:ok) do
-    children = [
-      {MyApp.EventStream, [events: ["MetagameEvent", "VehicleDestroy"], worlds: ["Emerald", "Miller"], characters: ["all"]]},
+  @impl Application
+  def start(_type, _args) do
+    subscriptions = [
+      events: [PS2.player_login],
+      worlds: [PS2.connery, PS2.miller, PS2.soltech],
+      characters: ["all"]
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
-  end
-end
+    clients = [MyApp.EventHandler]
 
-defmodule MyApp.EventStream do
-  use PS2.SocketClient
+    ess_opts = [
+      subscriptions: subscriptions,
+      clients: clients,
+      service_id: YOUR_SERVICE_ID,
+      # you may also add a :name option.
+    ]
 
-  def start_link(subscriptions) do
-    PS2.SocketClient.start_link(__MODULE__, subscriptions)
-  end
+    children = [
+      # ...
+      {PS2.Socket, ess_opts},
+      # ...
+    ]
 
-  def handle_event({"MetagameEvent", payload}), do: IO.puts "Alert #{payload[:metagame_event_id]}"
-  def handle_event({"VehicleDestroy", payload}), do: IO.inspect payload
-
-  def handle_event({event, _payload}) do
-    IO.puts "Recieved unhandled event: #{event}"
+    opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+    Supervisor.start_link(children, opts)
   end
 end
 ```
 
-If you are not interested in Event Streaming at all, you can set 
-`event_streaming: false` in your config file.
-```elixir
-import Config
-config :planetside_api, service_id: "service_id_here", event_streaming: false
-```
+The subscription keys are:
+
+- `:events` is a list of event names
+- `:worlds` is a list of world/server IDs
+- `:characters` is a list of character IDs.
+
+The `PS2` module provides some convenience methods for both
+event names and world IDs. If you want to receive all events
+for any of these keys, you can use `["all"]` instead of a
+list of specific values.
+
+See the official [Event Streaming docs](https://census.daybreakgames.com/#what-is-websocket)
+for more information.
