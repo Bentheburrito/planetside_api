@@ -5,7 +5,7 @@ defmodule PS2.Socket do
   After writing a `PS2.SocketClient`, you can start receiving and handling ESS events by spinning up a `PS2.Socket` with
   your desired event subscriptions. You should start this process in your supervision tree. For example:
   ```elixir
-  defmodule YourApp.Application do
+  defmodule MyApp.Application do
     use Application
 
     @impl true
@@ -15,7 +15,7 @@ defmodule PS2.Socket do
   			worlds: [PS2.connery, PS2.miller, PS2.soltech],
   			characters: ["all"]
   		]
-      clients = [YourApp.EventHandlerModule]
+      clients = [MyApp.EventHandler]
 
       ess_opts = [
         subscriptions: subscriptions,
@@ -30,7 +30,7 @@ defmodule PS2.Socket do
         # ...
       ]
 
-      opts = [strategy: :one_for_one, name: YourApp.Supervisor]
+      opts = [strategy: :one_for_one, name: MyApp.Supervisor]
       Supervisor.start_link(children, opts)
     end
   end
@@ -108,6 +108,11 @@ defmodule PS2.Socket do
     {:ok, state}
   end
 
+  def handle_disconnect(%{reason: %WebSockex.RequestError{code: 403 = code, message: message}}, state) do
+    Logger.error("Disconnected from the Socket: \"#{message}\" (error code #{code}). Make sure you have provided a valid service ID!")
+    {:ok, state}
+  end
+
   # Handle ESS timing out
   def handle_disconnect(
         %{attempt_number: @max_reconnects},
@@ -121,10 +126,11 @@ defmodule PS2.Socket do
     {:ok, state}
   end
 
-  def handle_disconnect(%{attempt_number: attempt}, state) do
+  def handle_disconnect(%{attempt_number: attempt} = conn, state) do
     Logger.info(
       "Disconnected from the Socket, attempting to reconnect (#{attempt}/#{@max_reconnects})."
     )
+    Logger.debug(inspect(conn))
 
     {:reconnect, state}
   end

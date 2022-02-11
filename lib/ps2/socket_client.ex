@@ -14,18 +14,8 @@ defmodule PS2.SocketClient do
 
   Example implementation:
   ```elixir
-  defmodule MyApp.EventStream do
+  defmodule MyApp.EventHandler do
     @behaviour PS2.SocketClient
-
-    # An optional callback for further filtering of events from PS2.Socket
-    @impl PS2.SocketClient
-    def subscriptions do
-      [
-        events: ["all"],
-        worlds: [PS2.connery],
-        characters: ["all"]
-      ]
-    end
 
     @impl PS2.SocketClient
     def handle_event({"PlayerLogin", payload}) do
