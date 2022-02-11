@@ -26,7 +26,6 @@ defmodule PS2.SocketTest do
     end
 
     test "can distribute GainExperience events to a SocketClient", %{service_id: sid} do
-      IO.puts "running one"
       assert true = Process.register(self(), :test_one_client)
       {:ok, _pid} = PS2.Socket.start_link(subscriptions: @default_subs, clients: [TestClient], service_id: sid)
 
@@ -34,7 +33,6 @@ defmodule PS2.SocketTest do
     end
 
     test "can distribute GainExperience events to many SocketClients", %{service_id: sid} do
-      IO.puts "running two"
       assert true = Process.register(self(), :test_two_clients)
       {:ok, _pid} = PS2.Socket.start_link(subscriptions: @default_subs, clients: [OtherTestClient, AnotherTestClient], service_id: sid)
 
