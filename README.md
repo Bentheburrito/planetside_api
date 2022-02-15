@@ -1,4 +1,4 @@
-# Planetside 2 API Wrapper v0.1
+# Planetside 2 API Wrapper
 
 A library that provides clean PS2 Census query creation
 and Event Stream management for Elixir developers.
@@ -12,7 +12,7 @@ Add `planetside_api` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:planetside_api, "~> 0.2.0"}
+    {:planetside_api, "~> 0.3.0"}
   ]
 end
 ```
