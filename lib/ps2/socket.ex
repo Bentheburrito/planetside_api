@@ -109,8 +109,14 @@ defmodule PS2.Socket do
     {:ok, state}
   end
 
-  def handle_disconnect(%{reason: %WebSockex.RequestError{code: 403 = code, message: message}}, state) do
-    Logger.error("Disconnected from the Socket: \"#{message}\" (error code #{code}). Make sure you have provided a valid service ID!")
+  def handle_disconnect(
+        %{reason: %WebSockex.RequestError{code: 403 = code, message: message}},
+        state
+      ) do
+    Logger.error(
+      "Disconnected from the Socket: \"#{message}\" (error code #{code}). Make sure you have provided a valid service ID!"
+    )
+
     {:ok, state}
   end
 
@@ -131,6 +137,7 @@ defmodule PS2.Socket do
     Logger.info(
       "Disconnected from the Socket, attempting to reconnect (#{attempt}/#{@max_reconnects})."
     )
+
     Logger.debug(inspect(conn))
 
     {:reconnect, state}

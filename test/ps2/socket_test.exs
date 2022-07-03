@@ -5,7 +5,7 @@ defmodule PS2.SocketTest do
   doctest PS2.SocketClient
 
   @default_subs [
-    events: [PS2.gain_experience],
+    events: [PS2.gain_experience()],
     worlds: ["all"],
     characters: ["all"]
   ]
@@ -15,7 +15,6 @@ defmodule PS2.SocketTest do
   end
 
   describe "PS2.Socket" do
-
     test "can start up with a service ID", %{service_id: sid} do
       assert {:ok, _pid} = PS2.Socket.start_link(service_id: sid)
     end
@@ -27,14 +26,26 @@ defmodule PS2.SocketTest do
 
     test "can distribute GainExperience events to a SocketClient", %{service_id: sid} do
       assert true = Process.register(self(), :test_one_client)
-      {:ok, _pid} = PS2.Socket.start_link(subscriptions: @default_subs, clients: [TestClient], service_id: sid)
+
+      {:ok, _pid} =
+        PS2.Socket.start_link(
+          subscriptions: @default_subs,
+          clients: [TestClient],
+          service_id: sid
+        )
 
       assert_receive {TestClient, "GainExperience"}, 5000
     end
 
     test "can distribute GainExperience events to many SocketClients", %{service_id: sid} do
       assert true = Process.register(self(), :test_two_clients)
-      {:ok, _pid} = PS2.Socket.start_link(subscriptions: @default_subs, clients: [OtherTestClient, AnotherTestClient], service_id: sid)
+
+      {:ok, _pid} =
+        PS2.Socket.start_link(
+          subscriptions: @default_subs,
+          clients: [OtherTestClient, AnotherTestClient],
+          service_id: sid
+        )
 
       assert_receive {OtherTestClient, "GainExperience"}, 5000
       assert_receive {AnotherTestClient, "GainExperience"}, 5000
@@ -47,7 +58,8 @@ defmodule TestClient do
   @behaviour PS2.SocketClient
 
   @impl PS2.SocketClient
-  def handle_event({"GainExperience", _payload}), do: send(:test_one_client, {TestClient, "GainExperience"})
+  def handle_event({"GainExperience", _payload}),
+    do: send(:test_one_client, {TestClient, "GainExperience"})
 
   @impl PS2.SocketClient
   def handle_event({_event, _payload}), do: nil
@@ -58,7 +70,8 @@ defmodule OtherTestClient do
   @behaviour PS2.SocketClient
 
   @impl PS2.SocketClient
-  def handle_event({"GainExperience", _payload}), do: send(:test_two_clients, {OtherTestClient, "GainExperience"})
+  def handle_event({"GainExperience", _payload}),
+    do: send(:test_two_clients, {OtherTestClient, "GainExperience"})
 
   @impl PS2.SocketClient
   def handle_event({_event, _payload}), do: nil
@@ -69,7 +82,8 @@ defmodule AnotherTestClient do
   @behaviour PS2.SocketClient
 
   @impl PS2.SocketClient
-  def handle_event({"GainExperience", _payload}), do: send(:test_two_clients, {AnotherTestClient, "GainExperience"})
+  def handle_event({"GainExperience", _payload}),
+    do: send(:test_two_clients, {AnotherTestClient, "GainExperience"})
 
   @impl PS2.SocketClient
   def handle_event({_event, _payload}), do: nil
