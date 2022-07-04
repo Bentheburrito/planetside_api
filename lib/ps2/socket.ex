@@ -4,6 +4,7 @@ defmodule PS2.Socket do
 
   After writing a `PS2.SocketClient`, you can start receiving and handling ESS events by spinning up a `PS2.Socket` with
   your desired event subscriptions. You should start this process in your supervision tree. For example:
+
   ```elixir
   defmodule MyApp.Application do
     use Application
@@ -22,7 +23,8 @@ defmodule PS2.Socket do
         subscriptions: subscriptions,
         clients: clients,
         service_id: YOUR_SERVICE_ID,
-        # you may also add a :name option.
+        # you may also add a :name option. The name defaults to `PS2.Socket`, so if you want to run multiple sockets
+        # for some reason, you can specify `name: :none` for no name to be registered.
       ]
 
       children = [
@@ -36,6 +38,23 @@ defmodule PS2.Socket do
     end
   end
   ```
+
+  You can also include metadata in the ESS opts to be passed with every event. For example:
+
+  ```elixir
+    ess_opts = [
+      subscriptions: subscriptions,
+      clients: clients,
+      service_id: YOUR_SERVICE_ID,
+      metadata: [hello: :websocket]
+    ]
+
+    # in your SocketClient:
+    def handle_event({event_name, _payload}, metadata) do
+      IO.inspect("Received \#{event_name} with metadata \#{inspect(metadata)}")
+    end
+  ```
+
   Since your service ID should be kept a secret, if you're using version control (e.g. git), you should
   use `Application.get_env(:your_app, :service_id)`, or use environment variables with
   `System.get_env(:your_app, :service_id)`, in place of `YOUR_SERVICE_ID`. You can read more about configuring Elixir
@@ -47,25 +66,41 @@ defmodule PS2.Socket do
 
   require Logger
 
+  alias PS2.Socket
+
+  @enforce_keys [:me]
+  defstruct subscriptions: [], clients: [], metadata: :none, me: nil
+
   def start_link(opts) do
     case Keyword.fetch(opts, :service_id) do
       {:ok, sid} ->
         {name, opts} = Keyword.pop(opts, :name, __MODULE__)
         clients = Keyword.get(opts, :clients, [])
         subscriptions = Keyword.get(opts, :subscriptions, [])
+        metadata = Keyword.get(opts, :metadata, :none)
 
-        ws_opts = [
-          name: name,
-          async: true,
-          handle_initial_conn_failure: true
-        ]
+        ws_opts =
+          [
+            async: true,
+            handle_initial_conn_failure: true
+          ] ++ if name == :none, do: [], else: [name: name]
 
-        WebSockex.start_link(
-          "wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}",
-          __MODULE__,
-          {subscriptions, clients},
-          ws_opts
-        )
+        ws =
+          WebSockex.start_link(
+            "wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}",
+            __MODULE__,
+            %Socket{subscriptions: subscriptions, clients: clients, metadata: metadata, me: name},
+            ws_opts
+          )
+
+        case ws do
+          {:ok, pid} when name == :none ->
+            send(pid, {:update_me, pid})
+            {:ok, pid}
+
+          start_result ->
+            start_result
+        end
 
       :error ->
         {:stop, no_sid_error_message()}
@@ -94,18 +129,18 @@ defmodule PS2.Socket do
 
   def handle_cast({:send, frame}, state), do: {:reply, frame, state}
 
-  def handle_cast({:new_client, new_client}, {subscriptions, clients}) do
-    {:ok, {subscriptions, [new_client | clients]}}
+  def handle_cast({:new_client, new_client}, %Socket{clients: clients} = state) do
+    {:ok, %Socket{state | clients: [new_client | clients]}}
   end
 
-  def handle_cast(:resubscribe, {subs, _clients} = state) do
-    subscribe(subs)
+  def handle_cast(:resubscribe, %Socket{subscriptions: subs, me: me} = state) do
+    subscribe(me, subs)
     {:ok, state}
   end
 
-  def handle_connect(_conn, {subs, _clients} = state) do
+  def handle_connect(_conn, %Socket{subscriptions: subs, me: me} = state) do
     Logger.info("Connected to the Socket.")
-    subscribe(subs)
+    subscribe(me, subs)
     {:ok, state}
   end
 
@@ -125,8 +160,9 @@ defmodule PS2.Socket do
         %{attempt_number: @max_reconnects},
         state
       ) do
-    Logger.warn(
-      "ESS disconnected #{@max_reconnects} time(s), will retry initial connection in 30 seconds..."
+    Logger.warning(
+      "ESS disconnected #{@max_reconnects} time(s), will retry initial connection in 30 seconds...",
+      inspect(state)
     )
 
     Process.sleep(30_000)
@@ -135,12 +171,18 @@ defmodule PS2.Socket do
 
   def handle_disconnect(%{attempt_number: attempt} = conn, state) do
     Logger.info(
-      "Disconnected from the Socket, attempting to reconnect (#{attempt}/#{@max_reconnects})."
+      "Disconnected from the Socket, attempting to reconnect (#{attempt}/#{@max_reconnects}).",
+      inspect(state)
     )
 
     Logger.debug(inspect(conn))
 
     {:reconnect, state}
+  end
+
+  def handle_info({:update_me, pid}, %Socket{} = state) do
+    subscribe(pid, state.subscriptions)
+    {:ok, %Socket{state | me: pid}}
   end
 
   def handle_info(unknown, state) do
@@ -150,7 +192,7 @@ defmodule PS2.Socket do
 
   ## Data Transformation and Dispatch
 
-  defp handle_message(msg, {_subs, clients}) do
+  defp handle_message(msg, %Socket{clients: clients, metadata: metadata}) do
     case Jason.decode(msg) do
       {:ok, %{"connected" => "true"}} ->
         Logger.info("Received connected message.")
@@ -166,7 +208,7 @@ defmodule PS2.Socket do
 
       {:ok, message} ->
         with {:ok, event} <- create_event(message) do
-          send_event(event, clients)
+          send_event(event, clients, metadata)
         end
 
       {:error, e} ->
@@ -174,7 +216,11 @@ defmodule PS2.Socket do
     end
   end
 
-  defp subscribe(subscriptions) do
+  defp subscribe(:none, _subs) do
+    :no_dest
+  end
+
+  defp subscribe(me, subscriptions) do
     payload =
       Jason.encode!(%{
         "service" => "event",
@@ -184,7 +230,7 @@ defmodule PS2.Socket do
         "eventNames" => subscriptions[:events]
       })
 
-    WebSockex.cast(__MODULE__, {:send, {:text, payload}})
+    WebSockex.cast(me, {:send, {:text, payload}})
     :ok
   end
 
@@ -199,9 +245,16 @@ defmodule PS2.Socket do
     end
   end
 
-  defp send_event(event, clients) do
+  defp send_event(event, clients, metadata) do
+    args =
+      if metadata == :none do
+        [event]
+      else
+        [event, metadata]
+      end
+
     Enum.each(clients, fn client ->
-      Task.start(client, :handle_event, [event])
+      Task.start(client, :handle_event, args)
     end)
   end
 end

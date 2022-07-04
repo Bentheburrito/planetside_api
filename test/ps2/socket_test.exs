@@ -51,6 +51,20 @@ defmodule PS2.SocketTest do
       assert_receive {AnotherTestClient, "GainExperience"}, 5000
     end
   end
+
+  test "can take metadata via `start_link/1` and include it with events", %{service_id: sid} do
+    assert true = Process.register(self(), :test_metadata)
+
+    {:ok, _pid} =
+      PS2.Socket.start_link(
+        subscriptions: @default_subs,
+        clients: [TestClient],
+        service_id: sid,
+        metadata: :tell_me_if_you_get_this
+      )
+
+    assert_receive {:hey_i_got_this, :tell_me_if_you_get_this}, 5000
+  end
 end
 
 defmodule TestClient do
@@ -60,6 +74,10 @@ defmodule TestClient do
   @impl PS2.SocketClient
   def handle_event({"GainExperience", _payload}),
     do: send(:test_one_client, {TestClient, "GainExperience"})
+
+  def handle_event({"GainExperience", _payload}, metadata) do
+    send(:test_metadata, {:hey_i_got_this, metadata})
+  end
 
   @impl PS2.SocketClient
   def handle_event({_event, _payload}), do: nil
