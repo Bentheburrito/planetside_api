@@ -43,7 +43,7 @@ defmodule PS2.APITest do
         |> term("name.first_lower", "snowful")
         |> show("character_id")
 
-      assert PS2.API.query(q) ===
+      assert PS2.API.query(q, Application.fetch_env!(:planetside_api, :service_id)) ===
                {:ok,
                 %QueryResult{
                   data: [%{"character_id" => "5428713425545165425"}],
@@ -58,7 +58,7 @@ defmodule PS2.APITest do
         |> term("name.first_lower", "snowful")
         |> show("character_id")
 
-      assert PS2.API.query_one(q) ===
+      assert PS2.API.query_one(q, Application.fetch_env!(:planetside_api, :service_id)) ===
                {:ok,
                 %QueryResult{
                   data: %{"character_id" => "5428713425545165425"},
@@ -67,7 +67,7 @@ defmodule PS2.APITest do
     end
 
     test "can retrieve collection list" do
-      {:ok, res} = PS2.API.get_collections()
+      {:ok, res} = PS2.API.get_collections(Application.fetch_env!(:planetside_api, :service_id))
       assert res.returned === 111
       assert length(res.data) === 111
     end
@@ -75,7 +75,7 @@ defmodule PS2.APITest do
     test "query with bad collection returns a PS2.API.Error with message \"No data found.\"" do
       q = Query.new() |> collection("does_not_exist")
 
-      assert PS2.API.query(q) ==
+      assert PS2.API.query(q, Application.fetch_env!(:planetside_api, :service_id)) ==
                {:error,
                 %PS2.API.Error{
                   message: "No data found.",
@@ -96,7 +96,7 @@ defmodule PS2.APITest do
         |> term("name.first_lower", "snowful")
         |> exact_match_first("invalid_value")
 
-      assert PS2.API.query(q) ==
+      assert PS2.API.query(q, Application.fetch_env!(:planetside_api, :service_id)) ==
                {:error,
                 %PS2.API.Error{
                   message: @invalid_search_term_message,

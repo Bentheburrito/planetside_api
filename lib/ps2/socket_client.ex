@@ -5,9 +5,9 @@ defmodule PS2.SocketClient do
   ## Implementation
   To handle incoming game events, you need to pass a module with a `handle_event/1` callback to `PS2.Socket` when you
   start it. This behaviour provides an outline for developing such a module (Example implementation below). Events will
-  be passed to your client module via the `handle_event/1` in a tuple with the form of `{event_name, payload}`. Note
+  be passed to your client module via the `handle_event/1` in a tuple with the form of `{event_name, payload}`. **Note**
   that you should have a catch-all `handle_event/1` callback in the case of unhandled events (see example), otherwise
-  the client will crash whenever it receives an unknown event.
+  the client will crash whenever it receives an unknown event (or you are using metadata with `handle_event/2`).
 
   Once you have a module like the one below, pass it under the `:clients` option to your `PS2.Socket` (see that module's
   documentation for details).
@@ -61,4 +61,7 @@ defmodule PS2.SocketClient do
   @type subscription_list :: [subscription] | []
 
   @callback handle_event(event) :: any
+  @callback handle_event(event, metadata :: any()) :: any()
+
+  @optional_callbacks [handle_event: 2]
 end
