@@ -32,7 +32,8 @@ defmodule PS2.API do
   @error_keys ["error", "errorMessage", "errorCode"]
 
   defp get(query, sid, opts \\ []) do
-    HTTPoison.get("https://census.daybreakgames.com/s:#{sid}/get/ps2:v2/#{query}", opts)
+    url = "https://census.daybreakgames.com/s:#{sid}/get/ps2:v2/#{query}"
+    HTTPoison.request(:get, url, "", [], opts)
   end
 
   @doc """
@@ -111,7 +112,7 @@ defmodule PS2.API do
   """
   @spec get_image(String.t()) :: {:ok, binary()} | {:error, HTTPoison.Error.t()}
   def get_image(image_path) do
-    with {:ok, res} <- HTTPoison.get("https://census.daybreakgames.com#{image_path}"),
+    with {:ok, res} <- HTTPoison.request(:get, "https://census.daybreakgames.com#{image_path}"),
          do: {:ok, res.body}
   end
 
@@ -158,9 +159,6 @@ defmodule PS2.API do
 
   defp encode_params(values, separator \\ "&") do
     Enum.map_join(values, separator, fn
-      {key, {modifier, val_list}} when is_list(val_list) ->
-        Enum.map_join(val_list, "&", &"#{key}=#{modifier}#{&1}")
-
       {key, {modifier, val}} when not is_nil(val) ->
         "#{key}=#{modifier}#{encode_param_values(val)}"
 
@@ -172,7 +170,7 @@ defmodule PS2.API do
   defp encode_terms(terms) when is_map(terms),
     do:
       Enum.map_join(terms, "'", fn
-        {key, {modifier, val_list}} when not is_nil(val_list) and is_list(val_list) ->
+        {key, {modifier, val_list}} when is_list(val_list) ->
           Enum.map_join(val_list, "'", &"#{key}=#{modifier}#{&1}")
 
         {key, {modifier, val}} when not is_nil(val) ->
@@ -185,6 +183,6 @@ defmodule PS2.API do
     do: Enum.join(values, separator)
 
   defp encode_param_values(value, _separator)
-       when is_bitstring(value) or is_boolean(value) or is_integer(value),
+       when is_bitstring(value) or is_boolean(value) or is_integer(value) or is_atom(value),
        do: value
 end

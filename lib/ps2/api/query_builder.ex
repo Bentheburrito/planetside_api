@@ -277,7 +277,7 @@ defmodule PS2.API.QueryBuilder do
   the field to be resolved on. For instance, resolving leader on outfit requires
   that leader_character_id be in the initial query.
   """
-  @spec resolve(Query.t(), String.t()) :: Query.t()
+  @spec resolve(Query.t(), String.t() | [String.t()]) :: Query.t()
   def resolve(%Query{} = query, collection),
     do: %Query{query | params: Map.put(query.params, "c:resolve", collection)}
 
