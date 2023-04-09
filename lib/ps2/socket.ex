@@ -114,6 +114,19 @@ defmodule PS2.Socket do
     WebSockex.cast(name, :resubscribe)
   end
 
+  @doc """
+  Add a new subscription. Raises a `KeyError` if `subscription` is not formatted correctly.
+
+  `subscription` should be a keyword list similar to the one passed in the options to `PS2.Socket`.
+  """
+  def subscribe!(name \\ __MODULE__, subscription) do
+    Keyword.fetch!(subscription, :events)
+    Keyword.fetch!(subscription, :worlds)
+    Keyword.fetch!(subscription, :characters)
+
+    WebSockex.cast(name, {:subscribe, subscription})
+  end
+
   def no_sid_error_message do
     "Please provide a Census service ID under the :service_id option. (See module documentation)"
   end
@@ -134,13 +147,24 @@ defmodule PS2.Socket do
   end
 
   def handle_cast(:resubscribe, %Socket{subscriptions: subs, me: me} = state) do
-    subscribe(me, subs)
+    do_subscribe(me, subs)
     {:ok, state}
+  end
+
+  def handle_cast({:subscribe, subscription}, %Socket{subscriptions: subs, me: me} = state) do
+    do_subscribe(me, subscription)
+
+    events = subs[:events] ++ subscription[:events]
+    worlds = subs[:worlds] ++ subscription[:worlds]
+    characters = subs[:characters] ++ subscription[:characters]
+
+    {:ok,
+     %Socket{state | subscriptions: [events: events, worlds: worlds, characters: characters]}}
   end
 
   def handle_connect(_conn, %Socket{subscriptions: subs, me: me} = state) do
     Logger.info("Connected to the Socket.")
-    subscribe(me, subs)
+    do_subscribe(me, subs)
     {:ok, state}
   end
 
@@ -181,7 +205,7 @@ defmodule PS2.Socket do
   end
 
   def handle_info({:update_me, pid}, %Socket{} = state) do
-    subscribe(pid, state.subscriptions)
+    do_subscribe(pid, state.subscriptions)
     {:ok, %Socket{state | me: pid}}
   end
 
@@ -216,11 +240,11 @@ defmodule PS2.Socket do
     end
   end
 
-  defp subscribe(:none, _subs) do
+  defp do_subscribe(:none, _subs) do
     :no_dest
   end
 
-  defp subscribe(me, subscriptions) do
+  defp do_subscribe(me, subscriptions) do
     payload =
       Jason.encode!(%{
         "service" => "event",
