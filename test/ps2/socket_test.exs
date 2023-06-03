@@ -65,6 +65,20 @@ defmodule PS2.SocketTest do
 
     assert_receive {:hey_i_got_this, :tell_me_if_you_get_this}, 5000
   end
+
+  @tag skip: "takes a long time, gonna skip by default"
+  test "receives #{PS2.server_health_update()} events", %{service_id: sid} do
+    assert true = Process.register(self(), :test_health_updates)
+
+    {:ok, _pid} =
+      PS2.Socket.start_link(
+        subscriptions: @default_subs,
+        clients: [OnlineTestClient],
+        service_id: sid
+      )
+
+    assert_receive {:health_update, payload} when is_map(payload), 45_000
+  end
 end
 
 defmodule TestClient do
@@ -102,6 +116,21 @@ defmodule AnotherTestClient do
   @impl PS2.SocketClient
   def handle_event({"GainExperience", _payload}),
     do: send(:test_two_clients, {AnotherTestClient, "GainExperience"})
+
+  @impl PS2.SocketClient
+  def handle_event({_event, _payload}), do: nil
+end
+
+defmodule OnlineTestClient do
+  @moduledoc false
+  @behaviour PS2.SocketClient
+
+  @health_update PS2.server_health_update()
+
+  @impl PS2.SocketClient
+  def handle_event({@health_update, payload}) do
+    send(:test_health_updates, {:health_update, payload})
+  end
 
   @impl PS2.SocketClient
   def handle_event({_event, _payload}), do: nil

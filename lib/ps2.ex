@@ -27,4 +27,10 @@ defmodule PS2 do
   def vehicle_destroy, do: "VehicleDestroy"
   def continent_lock, do: "ContinentLock"
   def continent_unlock, do: "ContinentUnlock"
+
+  @doc """
+  A custom heartbeat event that clients can consume. Emitted whenever the ESS sends a `%{"online" => %{...}}` message
+  to the Socket (approximately every 30 seconds).
+  """
+  def server_health_update, do: "ServerHealthUpdate"
 end
