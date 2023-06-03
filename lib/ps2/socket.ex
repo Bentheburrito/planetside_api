@@ -219,7 +219,7 @@ defmodule PS2.Socket do
   defp handle_message(msg, %Socket{clients: clients, metadata: metadata}) do
     case Jason.decode(msg) do
       {:ok, %{"connected" => "true"}} ->
-        Logger.info("Received connected message.")
+        Logger.info("Connected to the ESS.")
 
       {:ok, %{"subscription" => subscriptions}} ->
         Logger.info("""
@@ -229,6 +229,14 @@ defmodule PS2.Socket do
 
       {:ok, %{"send this for help" => _}} ->
         nil
+
+      # server status sent on connect, ignore for now
+      {:ok, %{"detail" => "EventServerEndpoint" <> _rest}} ->
+        nil
+
+      {:ok, %{"online" => payload}} ->
+        event = {PS2.server_health_update(), payload}
+        send_event(event, clients, metadata)
 
       {:ok, message} ->
         with {:ok, event} <- create_event(message) do
