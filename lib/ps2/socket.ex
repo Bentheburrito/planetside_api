@@ -78,6 +78,8 @@ defmodule PS2.Socket do
         clients = Keyword.get(opts, :clients, [])
         subscriptions = Keyword.get(opts, :subscriptions, [])
         metadata = Keyword.get(opts, :metadata, :none)
+        endpoint = Keyword.get(opts, :endpoint, "push.planetside2.com/streaming")
+        environment = Keyword.get(opts, :environment, "ps2")
 
         ws_opts =
           [
@@ -87,7 +89,7 @@ defmodule PS2.Socket do
 
         ws =
           WebSockex.start_link(
-            "wss://push.planetside2.com/streaming?environment=ps2&service-id=s:#{sid}",
+            "wss://#{endpoint}?environment=#{environment}&service-id=s:#{sid}",
             __MODULE__,
             %Socket{subscriptions: subscriptions, clients: clients, metadata: metadata, me: name},
             ws_opts
