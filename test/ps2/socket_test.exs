@@ -19,6 +19,10 @@ defmodule PS2.SocketTest do
       assert {:ok, _pid} = PS2.Socket.start_link(service_id: sid)
     end
 
+    test "can start up and connect to NSS", %{service_id: sid} do
+      assert {:ok, _pid} = PS2.Socket.start_link(service_id: sid, endpoint: "wss://push.nanite-systems.net/streaming")
+    end
+
     test "will not start without a service ID" do
       message = PS2.Socket.no_sid_error_message()
       assert {:stop, ^message} = PS2.Socket.start_link(subscriptions: @default_subs, clients: [])
