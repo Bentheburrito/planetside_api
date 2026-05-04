@@ -182,7 +182,7 @@ The subscription keys are:
 
 The `PS2` module provides some convenience methods for both
 event names and world IDs. If you want to receive all events
-for any of these keys, you can use `["all"]` instead of a
+for any of these keys, you can use `:all` instead of a
 list of specific values.
 
 See the official [Event Streaming docs](https://census.daybreakgames.com/#what-is-websocket)
