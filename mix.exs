@@ -4,9 +4,8 @@ defmodule PS2.MixProject do
   def project do
     [
       app: :planetside_api,
-      version: "0.3.5",
-      elixir: "~> 1.10",
-      start_permanent: Mix.env() == :prod,
+      version: "1.0.0",
+      elixir: "~> 1.18",
       description: description(),
       deps: deps(),
       package: package(),
@@ -24,10 +23,9 @@ defmodule PS2.MixProject do
 
   defp deps do
     [
-      {:jason, "~> 1.2"},
-      {:httpoison, "~> 1.6"},
-      {:websockex, "~> 0.4.2"},
-      {:ex_doc, "~> 0.21", only: :dev, runtime: false}
+      {:req, "~> 0.5.10"},
+      {:mint_web_socket, "~> 1.0"},
+      {:ex_doc, "~> 0.37.3", only: :dev, runtime: false}
     ]
   end
 

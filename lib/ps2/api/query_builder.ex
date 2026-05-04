@@ -24,8 +24,8 @@ defmodule PS2.API.QueryBuilder do
   	  },
   	  tree: nil
   	}
-  	iex> PS2.API.encode query
-  	{:ok, "character?c:exactMatchFirst=true&c:limit=3&c:show=character_id,name.en,faction_id&character_id=5428011263335537297"}
+  	iex> PS2.API.Query.encode query
+  	%URI{path: "/character", query: "c:exactMatchFirst=true&c:limit=3&c:show=character_id,name.en,faction_id&character_id=5428011263335537297&"}
 
   You can then send the query to the api using `PS2.API.query/1`.
 
@@ -50,7 +50,8 @@ defmodule PS2.API.QueryBuilder do
 
   ```elixir
   import PS2.API.QueryBuilder
-  alias PS2.API.{Query, Join}
+  alias PS2.API.Query
+  alias PS2.API.Query.Join
 
   online_status_join =
      # Note we could use Join.new(collection: "characters_online_status", show: "online_status" ...)
@@ -76,7 +77,8 @@ defmodule PS2.API.QueryBuilder do
 
   ```elixir
   import PS2.API.QueryBuilder
-  alias PS2.API.{Query, Join}
+  alias PS2.API.Query
+  alias PS2.API.Query.Join
 
   char_achieve_join =
     Join.new(collection: "characters_achievement", on: "character_id")
@@ -103,15 +105,15 @@ defmodule PS2.API.QueryBuilder do
 
   ```elixir
   import PS2.API.QueryBuilder
-  alias PS2.API.{Query, Tree}
+  alias PS2.API.Query
+  alias PS2.API.Query.Tree
 
   %Query{}
   |> collection("world_event")
   |> term("type", "METAGAME")
   |> lang("en")
   |> tree(
-    %Tree{}
-    |> field("world_id")
+    %Tree{field: "world_id"}
     |> list(true)
   )
   ```
@@ -140,7 +142,9 @@ defmodule PS2.API.QueryBuilder do
   @type collection_name :: String.t()
   @type field_name :: String.t()
 
-  alias PS2.API.{Query, Join, Tree}
+  alias PS2.API.Query
+  alias PS2.API.Query.Join
+  alias PS2.API.Query.Tree
 
   @doc """
   Set the collection of the query/join.
@@ -206,8 +210,7 @@ defmodule PS2.API.QueryBuilder do
 
     %Join{
       join
-      | params:
-          Map.update(join.params, :terms, %{field => term_value}, &Map.put(&1, field, term_value))
+      | params: Map.update(join.params, :terms, %{field => term_value}, &Map.put(&1, field, term_value))
     }
   end
 
@@ -240,7 +243,7 @@ defmodule PS2.API.QueryBuilder do
     do: %Join{join | params: Map.put(join.params, "list", PS2.Utils.boolean_to_integer(boolean))}
 
   def list(%Tree{} = tree, boolean),
-    do: %Tree{tree | terms: Map.put(tree.terms, :list, PS2.Utils.boolean_to_integer(boolean))}
+    do: %Tree{tree | list: PS2.Utils.boolean_to_integer(boolean)}
 
   # ~~Query specific functions~~
 
@@ -447,7 +450,7 @@ defmodule PS2.API.QueryBuilder do
   """
   @spec start_field(Tree.t(), field_name) :: %Tree{}
   def start_field(%Tree{} = tree, field),
-    do: %Tree{tree | terms: Map.put(tree.terms, :start, field)}
+    do: %Tree{tree | start: field}
 
   @doc """
   Adds a `field:` term.
@@ -455,7 +458,7 @@ defmodule PS2.API.QueryBuilder do
   The field to remove and use as in the data structure, or tree.
   """
   @spec field(Tree.t(), field_name) :: %Tree{}
-  def field(%Tree{} = tree, field), do: %Tree{tree | terms: Map.put(tree.terms, :field, field)}
+  def field(%Tree{} = tree, field), do: %Tree{tree | field: field}
 
   @doc """
   Add a `prefix:` term.
@@ -465,5 +468,5 @@ defmodule PS2.API.QueryBuilder do
   """
   @spec prefix(Tree.t(), String.t()) :: %Tree{}
   def prefix(%Tree{} = tree, prefix),
-    do: %Tree{tree | terms: Map.put(tree.terms, :prefix, prefix)}
+    do: %Tree{tree | prefix: prefix}
 end

@@ -3,7 +3,10 @@ defmodule PS2.API.QueryBuilderTest do
   doctest PS2.API.QueryBuilder
 
   import PS2.API.QueryBuilder
-  alias PS2.API.{Query, Join, Tree}
+
+  alias PS2.API.Query
+  alias PS2.API.Query.Join
+  alias PS2.API.Query.Tree
 
   describe "QueryBuilder" do
     test "can create a query struct with terms" do
@@ -13,7 +16,7 @@ defmodule PS2.API.QueryBuilderTest do
         |> term("character_id", "5428713425545165425")
 
       assert q ===
-               %PS2.API.Query{
+               %Query{
                  collection: "character",
                  joins: [],
                  sort: nil,
@@ -46,7 +49,7 @@ defmodule PS2.API.QueryBuilderTest do
         |> term("character_id", "5428713425545165425")
 
       assert join ===
-               %PS2.API.Join{
+               %Join{
                  collection: "characters_online_status",
                  joins: [],
                  params: %{
@@ -59,19 +62,16 @@ defmodule PS2.API.QueryBuilderTest do
 
     test "can create a tree struct with terms" do
       tree =
-        Tree.new(start: "character_list")
+        Tree.new(field: "faction_id")
         |> list(true)
-        |> field("faction_id")
+        |> start_field("character_list")
 
-      assert tree === %PS2.API.Tree{
-               terms: %{field: "faction_id", list: 1, start: "character_list"}
-             }
+      assert tree == %Tree{field: "faction_id", list: 1, start: "character_list"}
     end
 
     test "can create queries with joins, trees, and sorts" do
       q =
-        %Query{}
-        |> collection("test_col")
+        Query.new(collection: "test_col")
         |> limit(12)
         |> lang("en")
         |> join(
@@ -82,8 +82,7 @@ defmodule PS2.API.QueryBuilderTest do
           |> inject_at("name")
         )
         |> tree(
-          %Tree{}
-          |> field("some_field")
+          %Tree{field: "some_field"}
           |> list(true)
         )
         |> sort(%{"key" => "1"})
@@ -92,7 +91,7 @@ defmodule PS2.API.QueryBuilderTest do
                %PS2.API.Query{
                  collection: "test_col",
                  joins: [
-                   %PS2.API.Join{
+                   %Join{
                      collection: "test_col_join",
                      joins: [],
                      params: %{
@@ -104,14 +103,13 @@ defmodule PS2.API.QueryBuilderTest do
                  ],
                  sort: %{"key" => "1"},
                  params: %{"c:lang" => "en", "c:limit" => 12},
-                 tree: %PS2.API.Tree{terms: %{field: "some_field", list: 1}}
+                 tree: %Tree{field: "some_field", list: 1}
                }
     end
 
     test "can create adjacent and nested joins" do
       q =
-        %Query{}
-        |> collection("character")
+        Query.new(collection: "character")
         |> term("name.first", "Snowful")
         |> show(["character_id", "faction_id"])
         |> join(
@@ -120,29 +118,27 @@ defmodule PS2.API.QueryBuilderTest do
             Join.new(collection: "character_name", on: "character_id", to: "character_id")
             |> inject_at("c_name")
           )
-          |> join(
-            Join.new(collection: "characters_achievement", on: "character_id", to: "character_id")
-          )
+          |> join(Join.new(collection: "characters_achievement", on: "character_id", to: "character_id"))
         )
         |> join(Join.new(collection: "characters_stat_by_faction"))
 
       assert q === %PS2.API.Query{
                collection: "character",
                joins: [
-                 %PS2.API.Join{
+                 %Join{
                    collection: "characters_stat_by_faction",
                    joins: [],
                    params: %{}
                  },
-                 %PS2.API.Join{
+                 %Join{
                    collection: "characters_online_status",
                    joins: [
-                     %PS2.API.Join{
+                     %Join{
                        collection: "characters_achievement",
                        joins: [],
                        params: %{"on" => "character_id", "to" => "character_id"}
                      },
-                     %PS2.API.Join{
+                     %Join{
                        collection: "character_name",
                        joins: [],
                        params: %{
@@ -178,14 +174,14 @@ defmodule PS2.API.QueryBuilderTest do
                %PS2.API.Query{
                  collection: "character_name",
                  joins: [
-                   %PS2.API.Join{
+                   %Join{
                      collection: "characters_online_status",
                      joins: [],
                      params: %{"list" => 1, "on" => "character_id"}
                    },
-                   %PS2.API.Join{
+                   %Join{
                      collection: "character",
-                     joins: [%PS2.API.Join{collection: "faction", joins: [], params: %{}}],
+                     joins: [%Join{collection: "faction", joins: [], params: %{}}],
                      params: %{}
                    }
                  ],
@@ -220,16 +216,15 @@ defmodule PS2.API.QueryBuilderTest do
                %PS2.API.Query{
                  collection: "character",
                  joins: [
-                   %PS2.API.Join{
+                   %Join{
                      collection: "characters_weapon_stat",
                      joins: [
-                       %PS2.API.Join{
+                       %Join{
                          collection: "item",
                          joins: [],
                          params: %{
                            :terms => %{
-                             "item_category_id" =>
-                               {"", ["3", "5", "6", "7", "8", "12", "19", "24", "100", "102"]}
+                             "item_category_id" => {"", ["3", "5", "6", "7", "8", "12", "19", "24", "100", "102"]}
                            },
                            "inject_at" => "weapon",
                            "outer" => 0,

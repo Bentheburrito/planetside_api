@@ -1,9 +1,10 @@
-defmodule PS2.API.Join do
+defmodule PS2.API.Query.Join do
   @moduledoc """
-  A data structure representing a join on an API query. Create a join using %PS2.API.Join{} or the new/0 or new/1 functions.
+  A data structure representing a join on an API query. Create a join using
+  %PS2.API.Query.Join{} or the new/0 or new/1 functions.
   """
 
-  alias PS2.API.Join
+  alias PS2.API.Query.Join
 
   defstruct [:collection, params: %{}, joins: []]
 
@@ -27,8 +28,8 @@ defmodule PS2.API.Join do
   @spec new() :: t()
   def new, do: %Join{}
   @spec new(opts) :: t()
-  def new(opts),
-    do: %Join{
+  def new(opts) do
+    %Join{
       collection: Keyword.get(opts, :collection),
       params:
         for(
@@ -37,4 +38,5 @@ defmodule PS2.API.Join do
           do: {Atom.to_string(key), val}
         )
     }
+  end
 end

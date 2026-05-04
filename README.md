@@ -12,7 +12,7 @@ Add `planetside_api` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:planetside_api, "~> 0.3.4"}
+    {:planetside_api, "~> 1.0.0"}
   ]
 end
 ```
@@ -21,7 +21,7 @@ end
 
 This wrapper provides several data structures and functions
 that make creating readable Census API queries easy. The
-structs, `PS2.API.{Query, Join, Tree}`, can be manipulated
+structs, `PS2.API.Query` and `PS2.API.Query.{Join, Tree}`, can be manipulated
 and added to via the functions from `PS2.API.QueryBuilder`.
 
 `Query` is a struct representation of a Census query that is
@@ -33,7 +33,10 @@ a `Tree`.
 
 ```elixir
 # alias struct modules and import QueryBuilder for clean, readable pipelines.
-alias PS2.API.{Query, Join, Tree}
+alias PS2.API.Query
+alias PS2.API.Query.Join
+alias PS2.API.Query.Tree
+
 import PS2.API.QueryBuilder
 
 q =
@@ -84,7 +87,10 @@ returning `{:ok, results}`.
 example:
 
 ```elixir
-alias PS2.API.{Query, Join, Tree}
+alias PS2.API.Query
+alias PS2.API.Query.Join
+alias PS2.API.Query.Tree
+
 import PS2.API.QueryBuilder
 
 # Note we can pass the collection name (and common fields in Joins) when using a new/1 function.
@@ -120,16 +126,16 @@ and distributes parsed payloads through `PS2.SocketClient`s.
 
 ```elixir
 defmodule MyApp.EventHandler do
-  @behaviour PS2.SocketClient
+  @behaviour PS2.ESS
 
-  @impl PS2.SocketClient
-  def handle_event({"PlayerLogin", payload}) do
+  @impl PS2.ESS
+  def handle_event(%{"event_name" => "PlayerLogin"} = payload) do
     IO.puts "PlayerLogin: #{payload["character_id"]}"
   end
 
   # Catch-all callback.
-  @impl PS2.SocketClient
-  def handle_event({event_name, _payload}) do
+  @impl PS2.ESS
+  def handle_event(%{"event_name" => event_name}) do
     IO.puts "Unhandled event: #{event_name}"
   end
 end
@@ -144,24 +150,21 @@ defmodule MyApp.Application do
 
   @impl Application
   def start(_type, _args) do
-    subscriptions = [
-      events: [PS2.player_login],
-      worlds: [PS2.connery, PS2.miller, PS2.soltech],
-      characters: ["all"]
-    ]
-
-    clients = [MyApp.EventHandler]
+    subscriptions = PS2.ESS.Subscription.new(
+      events: [PS2.player_login()],
+      worlds: [PS2.osprey(), PS2.wainwright(), PS2.soltech()],
+      characters: :all
+    )
 
     ess_opts = [
       subscriptions: subscriptions,
-      clients: clients,
+      callback_mod: MyApp.EventHandler,
       service_id: YOUR_SERVICE_ID,
-      # you may also add a :name option.
     ]
 
     children = [
       # ...
-      {PS2.Socket, ess_opts},
+      {PS2.ESS, ess_opts}
       # ...
     ]
 

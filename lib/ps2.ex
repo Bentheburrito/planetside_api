@@ -3,12 +3,9 @@ defmodule PS2 do
   Base module for :planetside_api. Provides convenience functions for world/server IDs and event names.
   """
 
-  def connery, do: 1
-  def miller, do: 10
-  def cobalt, do: 13
-  def emerald, do: 17
+  def osprey, do: 1
+  def wainwright, do: 10
   def jaeger, do: 19
-  def briggs, do: 25
   def soltech, do: 40
 
   def achievement_earned, do: "AchievementEarned"
